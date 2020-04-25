@@ -55,7 +55,7 @@ class Tirage:
 
         self.channel = channel
         self.teams = [Team(ctx, team) for team in teams]
-        self.phase = OrderPhase(self)
+        self.phase = TirageOrderPhase(self)
 
     def team_for(self, author):
         for team in self.teams:
@@ -75,9 +75,14 @@ class Tirage:
     async def update_phase(self, ctx):
         if self.phase.finished():
             self.phase = await self.phase.next(ctx)
-        if self.phase is None:
-            await ctx.send("Le tirage est fini ! Bonne chance à tous pour la suite !")
-            del tirages[self.channel]
+
+            if self.phase is None:
+                await ctx.send(
+                    "Le tirage est fini ! Bonne chance à tous pour la suite !"
+                )
+                del tirages[self.channel]
+            else:
+                await self.phase.start(ctx)
 
 
 class Phase:
@@ -110,45 +115,65 @@ class Phase:
     def finished(self) -> bool:
         return NotImplemented
 
+    async def start(self, ctx):
+        pass
+
     async def next(self, ctx: Context) -> "Phase":
         return self.NEXT(self.tirage)
 
 
 class OrderPhase(Phase):
+    def __init__(self, tirage, name, order_name, reversed=False):
+        super().__init__(tirage)
+        self.name = name
+        self.reverse = reversed
+        self.order_name = order_name
+
+    def order_for(self, team):
+        return getattr(team, self.order_name)
+
+    def set_order_for(self, team, order):
+        setattr(team, self.order_name, order)
+
     async def dice(self, ctx, author, dice):
         team = self.team_for(author)
 
-        if team.tirage_order is None:
-            team.tirage_order = dice
+        if self.order_for(team) is None:
+            self.set_order_for(team, dice)
             print(f"Team {team.name} has rolled {dice}")
         else:
             await ctx.send(f"{author.mention}: merci de ne lancer qu'un dé.")
 
     def finished(self) -> bool:
-        return all(team.tirage_order is not None for team in self.teams)
+        return all(self.order_for(team) is not None for team in self.teams)
 
     async def next(self, ctx) -> "Phase":
-        orders = [team.tirage_order for team in self.teams]
+        orders = [self.order_for(team) for team in self.teams]
         if len(set(orders)) == len(orders):
             # All dice are different: good
             # We sort the teams so all tirages are in this order
-            self.tirage.teams = sorted(self.teams, key=attrgetter("tirage_order"))
+            self.tirage.teams = sorted(
+                self.teams, key=self.order_for, reverse=self.reverse
+            )
             await ctx.send(
-                "L'ordre des tirages pour ce tour est donc :\n"
+                f"L'ordre {self.name} pour ce tour est donc :\n"
                 " - "
                 + "\n - ".join(
-                    f"{team.role.mention} ({team.tirage_order})" for team in self.teams
+                    f"{team.role.mention} ({self.order_for(team)})"
+                    for team in self.teams
                 )
             )
-            return self.NEXT
+            if self.NEXT is not None:
+                return self.NEXT(self.tirage)
+            return None
         else:
             # Find dice that are the same
             count = defaultdict(list)
             for team in self.teams:
-                count[team.tirage_order].append(team)
+                count[self.order_for(team)].append(team)
 
             re_do = []
-            for dice, teams in count.items():
+            for teams in count.values():
                 if len(teams) > 1:
                     re_do.extend(teams)
 
@@ -159,8 +184,49 @@ class OrderPhase(Phase):
                 "Le nouveau lancer effacera l'ancien."
             )
             for team in re_do:
-                team.tirage_order = None
+                self.set_order_for(team, None)
             return self
+
+
+class PassageOrderPhase(OrderPhase):
+    def __init__(self, tirage):
+        super().__init__(tirage, "de passage", "passage_order", True)
+
+    async def start(self, ctx):
+        await ctx.send(
+            "Nous allons maintenant tirer l'ordre de passage durant le tour. "
+            "L'ordre du tour sera dans l'ordre décroissant des lancers, "
+            "c'est-à-dire que l'équipe qui tire le plus grand nombre "
+            "présentera en premier."
+        )
+        sleep(0.5)
+
+        captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
+        await ctx.send(
+            f"Les {captain.mention}s, vous pouvez lancer à nouveau un dé 100 (`!dice 100`)"
+        )
+
+
+class TirageOrderPhase(OrderPhase):
+    NEXT = PassageOrderPhase
+
+    def __init__(self, tirage):
+        super().__init__(tirage, "des tirages", "tirage_order", False)
+
+    async def start(self, ctx):
+        captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
+
+        sleep(0.5)  # The bot is more human if it doesn't type at the speed of light
+        await ctx.send(
+            "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes, "
+            "puis l'ordre de passage lors du tour."
+        )
+        sleep(0.5)
+        await ctx.send(
+            f"Les {captain.mention}s, vous pouvez désormais lancer un dé 100 "
+            "comme ceci `!dice 100`. "
+            "L'ordre des tirages suivants sera l'ordre croissant des lancers. "
+        )
 
 
 bot = commands.Bot(
@@ -191,8 +257,6 @@ async def start_draw(ctx: Context, *teams):
         if team not in roles:
             raise TfjmError("Le nom de l'équipe doit être exactement celui du rôle.")
 
-    captain: discord.Role = get(guild.roles, name=CAPTAIN_ROLE)
-
     # Here everything should be alright
     await ctx.send(
         "Nous allons commencer le tirage du premier tour. "
@@ -200,19 +264,9 @@ async def start_draw(ctx: Context, *teams):
         "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
         "est accessible sur https://tfjm.org/reglement."
     )
-    sleep(0.5)  # The bot is more human if it doesn't type at the speed of light
-    await ctx.send(
-        "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes, "
-        "puis l'ordre de passage lors du tour."
-    )
-    sleep(0.5)
-    await ctx.send(
-        f"Les {captain.mention}s, vous pouvez désormais lancer un dé 100 "
-        "comme ceci `!dice 100`. "
-        "L'ordre des tirages suivants sera l'ordre croissant des lancers. "
-    )
 
     tirages[channel] = Tirage(ctx, channel, teams)
+    await tirages[channel].phase.start(ctx)
 
 
 @bot.event
