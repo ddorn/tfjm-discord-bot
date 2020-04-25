@@ -4,6 +4,7 @@ import os
 import sys
 import traceback
 from collections import defaultdict
+from operator import attrgetter
 from time import sleep
 from typing import List, Dict
 
@@ -130,6 +131,15 @@ class OrderPhase(Phase):
         orders = [team.tirage_order for team in self.teams]
         if len(set(orders)) == len(orders):
             # All dice are different: good
+            # We sort the teams so all tirages are in this order
+            self.tirage.teams = sorted(self.teams, key=attrgetter("tirage_order"))
+            await ctx.send(
+                "L'ordre des tirages pour ce tour est donc :\n"
+                " - "
+                + "\n - ".join(
+                    f"{team.role.mention} ({team.tirage_order})" for team in self.teams
+                )
+            )
             return self.NEXT
         else:
             # Find dice that are the same
