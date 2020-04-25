@@ -29,8 +29,8 @@ GUILD = "690934836696973404"
 ORGA_ROLE = "Orga"
 CAPTAIN_ROLE = "Capitaine"
 
-TIRAGE_ORDER = 0
-PASSAGE_ORDER = 1
+with open("problems") as f:
+    PROBLEMS = f.read().splitlines()
 
 
 class TfjmError(Exception):
@@ -47,6 +47,10 @@ class Team:
         self.role = get(ctx.guild.roles, name=name)
         self.tirage_order = None
         self.passage_order = None
+
+        self.accepted_problem = None
+        self.rejected = []
+        self.can_refuse = len(PROBLEMS) - 5
 
 
 class Tirage:
@@ -103,6 +107,13 @@ class Phase:
     def teams(self):
         return self.tirage.teams
 
+    @teams.setter
+    def teams(self, teams):
+        self.tirage.teams = teams
+
+    def captain_mention(self, ctx):
+        return get(ctx.guild.roles, name=CAPTAIN_ROLE).mention
+
     async def dice(self, ctx: Context, author, dice):
         await self.fais_pas_chier(ctx)
 
@@ -123,10 +134,10 @@ class Phase:
 
 
 class OrderPhase(Phase):
-    def __init__(self, tirage, name, order_name, reversed=False):
+    def __init__(self, tirage, name, order_name, reverse=False):
         super().__init__(tirage)
         self.name = name
-        self.reverse = reversed
+        self.reverse = reverse
         self.order_name = order_name
 
     def order_for(self, team):
@@ -151,10 +162,7 @@ class OrderPhase(Phase):
         orders = [self.order_for(team) for team in self.teams]
         if len(set(orders)) == len(orders):
             # All dice are different: good
-            # We sort the teams so all tirages are in this order
-            self.tirage.teams = sorted(
-                self.teams, key=self.order_for, reverse=self.reverse
-            )
+            self.teams.sort(key=self.order_for, reverse=self.reverse)
             await ctx.send(
                 f"L'ordre {self.name} pour ce tour est donc :\n"
                 " - "
@@ -188,7 +196,55 @@ class OrderPhase(Phase):
             return self
 
 
+class TiragePhase(Phase):
+    """The phase where captains accept or refuse random problems."""
+
+    async def choose_problem(self, ctx: Context, author, problem):
+        return await super().choose_problem(ctx, author, problem)
+
+    async def accept(self, ctx: Context, author, yes):
+        return await super().accept(ctx, author, yes)
+
+    def finished(self) -> bool:
+        return all(team.accepted_problem for team in self.teams)
+
+    async def start(self, ctx: Context):
+        # First sort teams according to the tirage_order
+        self.teams.sort(key=attrgetter("tirage_order"))
+
+        async with ctx.typing():
+            sleep(0.5)
+            await ctx.send("Passons au tirage des problèmes !")
+            sleep(0.5)
+            await ctx.send(
+                f"Les {self.captain_mention(ctx)} vont tirer des problèmes au "
+                f"hasard, avec `!random-problem` ou `!rp` pour ceux qui aiment "
+                f"les abbréviations."
+            )
+            sleep(0.5)
+            await ctx.send(
+                "Ils pouront ensuite accepter ou refuser les problèmes avec "
+                "`!accept` ou `!refuse`."
+            )
+            sleep(0.5)
+            await ctx.send(
+                f"Chaque équipe peut refuser jusqu'a {len(PROBLEMS) - 5} "
+                f"problèmes sans pénalité (voir §13 du règlement). "
+                f"Un problème déjà rejeté ne compte pas deux fois."
+            )
+            await ctx.send("C'est parti !")
+            sleep(0.5)
+            await self.send_instructions(ctx)
+
+    async def send_instructions(self, ctx):
+        pass
+
+
 class PassageOrderPhase(OrderPhase):
+    """The phase to determine the chicken's order."""
+
+    NEXT = TiragePhase
+
     def __init__(self, tirage):
         super().__init__(tirage, "de passage", "passage_order", True)
 
@@ -208,6 +264,8 @@ class PassageOrderPhase(OrderPhase):
 
 
 class TirageOrderPhase(OrderPhase):
+    """Phase to determine the tirage's order."""
+
     NEXT = PassageOrderPhase
 
     def __init__(self, tirage):
@@ -243,8 +301,6 @@ tirages: Dict[int, Tirage] = {}
 )
 @commands.has_role(ORGA_ROLE)
 async def start_draw(ctx: Context, *teams):
-    guild: discord.Guild = ctx.guild
-
     channel = ctx.channel.id
     if channel in tirages:
         raise TfjmError("Il y a déjà un tirage en cours sur cette Channel.")
@@ -267,6 +323,20 @@ async def start_draw(ctx: Context, *teams):
 
     tirages[channel] = Tirage(ctx, channel, teams)
     await tirages[channel].phase.start(ctx)
+
+
+@bot.command(name="draw-skip")
+async def draw_skip(ctx, *teams):
+    channel = ctx.channel.id
+    tirages[channel] = tirage = Tirage(ctx, channel, teams)
+
+    tirage.phase = TiragePhase(tirage)
+    for i, team in enumerate(tirage.teams):
+        team.tirage_order = i
+        team.passage_order = i
+
+    await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
+    await tirage.phase.start(ctx)
 
 
 @bot.event
