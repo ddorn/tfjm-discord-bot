@@ -53,13 +53,13 @@ class Tirage:
         assert len(teams) in (3, 4)
 
         self.channel = channel
-        self.teams = {team: Team(ctx, team) for team in teams}
+        self.teams = [Team(ctx, team) for team in teams]
         self.phase = OrderPhase(self)
 
     def team_for(self, author):
         for team in self.teams:
-            if get(author.roles, name=team):
-                return self.teams[team]
+            if get(author.roles, name=team.name):
+                return team
 
         # Should theoretically not happen
         raise TfjmError(
@@ -83,7 +83,7 @@ class Phase:
     NEXT = None
 
     def __init__(self, tirage):
-        self.tirage = tirage
+        self.tirage: Tirage = tirage
 
     async def fais_pas_chier(self, ctx):
         await ctx.send(
@@ -124,17 +124,17 @@ class OrderPhase(Phase):
             await ctx.send(f"{author.mention}: merci de ne lancer qu'un dé.")
 
     def finished(self) -> bool:
-        return all(team.tirage_order is not None for team in self.teams.values())
+        return all(team.tirage_order is not None for team in self.teams)
 
     async def next(self, ctx) -> "Phase":
-        orders = [team.tirage_order for team in self.teams.values()]
+        orders = [team.tirage_order for team in self.teams]
         if len(set(orders)) == len(orders):
             # All dice are different: good
             return self.NEXT
         else:
             # Find dice that are the same
             count = defaultdict(list)
-            for team in self.teams.values:
+            for team in self.teams:
                 count[team.tirage_order].append(team)
 
             re_do = []
