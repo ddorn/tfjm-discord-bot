@@ -1,17 +1,15 @@
 #!/bin/python
-import enum
 import os
+import random
 import sys
 import traceback
 from collections import defaultdict
 from operator import attrgetter
 from time import sleep
-from typing import List, Dict
+from typing import Dict
 
 import discord
 from discord.ext import commands
-import random
-
 from discord.ext.commands import Context
 from discord.utils import get
 
@@ -143,6 +141,8 @@ class Phase:
         pass
 
     async def next(self, ctx: Context) -> "Phase":
+        if self.NEXT is None:
+            return None
         return self.NEXT(self.tirage)
 
 
@@ -236,7 +236,7 @@ class TiragePhase(Phase):
 
         if team.drawn_problem:
             await ctx.send(
-                "Vous avez déjà tiré in problème, merci de l'accepter (`!yes`) "
+                "Vous avez déjà tiré un problème, merci de l'accepter (`!yes`) "
                 "ou de le refuser (`!no)`."
             )
         elif not self.available(problem):
