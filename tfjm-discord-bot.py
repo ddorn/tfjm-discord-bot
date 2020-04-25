@@ -21,7 +21,9 @@ if TOKEN is None:
 
 GUILD = "690934836696973404"
 
-bot = commands.Bot("!")
+bot = commands.Bot(
+    "!", help_command=commands.DefaultHelpCommand(no_category="Commandes")
+)
 
 
 @bot.event
@@ -54,13 +56,23 @@ async def choose(ctx: Context, *args):
     await ctx.send(f"J'ai choisi... **{choice}**")
 
 
+@bot.command(
+    name="random-problem",
+    help="Choisit un problème parmi ceux de cette année.",
+    aliases=["rp", "problème-aléatoire", "probleme-aleatoire", "pa"],
+)
+async def random_problem(ctx: Context):
+    problems = open("problems").readlines()
+    problems = [p.strip() for p in problems]
+    problem = random.choice(problems)
+    await ctx.send(f"Le problème tiré est... **{problem}**")
+
+
 @bot.event
 async def on_error(event, *args, **kwargs):
     print(event)
     print(*args)
     print(kwargs)
-
-    raise
 
 
 if __name__ == "__main__":
