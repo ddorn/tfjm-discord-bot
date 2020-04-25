@@ -3,6 +3,7 @@ import enum
 import os
 import sys
 import traceback
+from collections import defaultdict
 from time import sleep
 from typing import List, Dict
 
@@ -127,11 +128,29 @@ class OrderPhase(Phase):
 
     async def next(self, ctx) -> "Phase":
         orders = [team.tirage_order for team in self.teams.values()]
-        # Check that order is unique
         if len(set(orders)) == len(orders):
+            # All dice are different: good
             return self.NEXT
         else:
-            await ctx.send("crotte.")
+            # Find dice that are the same
+            count = defaultdict(list)
+            for team in self.teams.values:
+                count[team.tirage_order].append(team)
+
+            re_do = []
+            for dice, teams in count.items():
+                if len(teams) > 1:
+                    re_do.extend(teams)
+
+            teams_str = ", ".join(team.role.mention for team in re_do)
+            await ctx.send(
+                f"Les equipes {teams_str} ont fait le même résultat "
+                "et doivent relancer un dé. "
+                "Le nouveau lancer effacera l'ancien."
+            )
+            for team in re_do:
+                team.tirage_order = None
+            return self
 
 
 bot = commands.Bot(
