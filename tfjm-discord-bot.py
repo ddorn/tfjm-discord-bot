@@ -31,6 +31,7 @@ CAPTAIN_ROLE = "Capitaine"
 
 with open("problems") as f:
     PROBLEMS = f.read().splitlines()
+MAX_REFUSE = len(PROBLEMS) - 5
 
 
 class TfjmError(Exception):
@@ -49,8 +50,12 @@ class Team:
         self.passage_order = None
 
         self.accepted_problem = None
-        self.rejected = []
-        self.can_refuse = len(PROBLEMS) - 5
+        self.drawn_problem = None  # Waiting to be accepted or refused
+        self.rejected = set()
+
+    @property
+    def mention(self):
+        return self.role.mention
 
 
 class Tirage:
@@ -74,6 +79,14 @@ class Tirage:
 
     async def dice(self, ctx, author, dice):
         await self.phase.dice(ctx, author, dice)
+        await self.update_phase(ctx)
+
+    async def choose_problem(self, ctx, author, problem):
+        await self.phase.choose_problem(ctx, author, problem)
+        await self.update_phase(ctx)
+
+    async def accept(self, ctx, author, yes):
+        await self.phase.accept(ctx, author, yes)
         await self.update_phase(ctx)
 
     async def update_phase(self, ctx):
@@ -199,11 +212,119 @@ class OrderPhase(Phase):
 class TiragePhase(Phase):
     """The phase where captains accept or refuse random problems."""
 
+    def __init__(self, tirage):
+        super().__init__(tirage)
+        self.turn = 0
+
+    @property
+    def current_team(self):
+        return self.teams[self.turn]
+
+    def available(self, problem):
+        return all(team.accepted_problem != problem for team in self.teams)
+
     async def choose_problem(self, ctx: Context, author, problem):
-        return await super().choose_problem(ctx, author, problem)
+        team = self.current_team
+        if self.team_for(author) != team:
+            await ctx.send(
+                f"{author.mention}: c'est à {team.mention} "
+                f"de choisir un problème, merci d'attendre :)"
+            )
+            return
+
+        assert team.accepted_problem is None, "Choosing pb for a team that has a pb..."
+
+        if team.drawn_problem:
+            await ctx.send(
+                "Vous avez déjà tiré in problème, merci de l'accepter (`!yes`) "
+                "ou de le refuser (`!no)`."
+            )
+        elif not self.available(problem):
+            await ctx.send(
+                f"Malheureusement, **{problem}** à déjà été choisi, "
+                f"vous pouvez tirer un nouveau problème."
+            )
+        elif problem in team.rejected:
+            team.drawn_problem = problem
+            await ctx.send(
+                f"Vous avez déjà refusé **{problem}**, "
+                f"vous pouvez le refuser à nouveau (`!refuse`) et "
+                f"tirer immédiatement un nouveau problème "
+                f"ou changer d'avis et l'accepter (`!accept`)."
+            )
+        else:
+            team.drawn_problem = problem
+            if len(team.rejected) >= MAX_REFUSE:
+                await ctx.send(
+                    f"Vous pouvez accepter ou refuser **{problem}** "
+                    f"mais si vous choisissez de le refuser, il y "
+                    f"aura une pénalité de 0.5 sur le multiplicateur du "
+                    f"défenseur."
+                )
+            else:
+                await ctx.send(
+                    f"Vous pouvez accepter (`!oui`) ou refuser (`!non`) **{problem}**. "
+                    f"Il reste {MAX_REFUSE - len(team.rejected)} refus sans pénalité "
+                    f"pour {team.mention}."
+                )
 
     async def accept(self, ctx: Context, author, yes):
-        return await super().accept(ctx, author, yes)
+        team = self.current_team
+
+        if self.team_for(author) != team:
+            await ctx.send(
+                f"{author.mention}: c'est à {team.mention} "
+                f"de choisir un problème, merci d'attendre :)"
+            )
+            return
+
+        assert team.accepted_problem is None, "Choosing pb for a team that has a pb..."
+
+        if not team.drawn_problem:
+            if yes:
+                await ctx.send(
+                    "Vous êtes bien optimistes pour vouloir accepter un problème "
+                    "avant de l'avoir tiré !"
+                )
+            else:
+                await ctx.send(
+                    "Halte là ! Ce serait bien de tirer un problème d'abord... "
+                    "et peut-être qu'il vous plaira :) "
+                )
+        else:
+            if yes:
+                team.accepted_problem = team.drawn_problem
+                await ctx.send(
+                    f"L'équipe {team.mention} a accepté "
+                    f"**{team.accepted_problem}** ! Les autres équipes "
+                    f"ne peuvent plus l'accepter."
+                )
+            else:
+                if team.drawn_problem in team.rejected:
+                    await ctx.send(
+                        f"{team.mention} a refusé **{team.drawn_problem}** "
+                        f"sans pénalité."
+                    )
+                else:
+                    team.rejected.add(team.drawn_problem)
+                    await ctx.send(f"{team.mention} a refusé **{team.drawn_problem}**!")
+
+            team.drawn_problem = None
+
+            # Next turn
+            if self.finished():
+                self.turn = None
+                return
+
+            # Find next team that needs to draw.
+            i = (self.turn + 1) % len(self.teams)
+            while self.teams[i].accepted_problem:
+                i = (i + 1) % len(self.teams)
+            self.turn = i
+
+            await ctx.send(
+                f"C'est au tour de {self.current_team.mention} de choisir un problème."
+            )
 
     def finished(self) -> bool:
         return all(team.accepted_problem for team in self.teams)
@@ -217,7 +338,7 @@ class TiragePhase(Phase):
             await ctx.send("Passons au tirage des problèmes !")
             sleep(0.5)
             await ctx.send(
-                f"Les {self.captain_mention(ctx)} vont tirer des problèmes au "
+                f"Les {self.captain_mention(ctx)}s vont tirer des problèmes au "
                 f"hasard, avec `!random-problem` ou `!rp` pour ceux qui aiment "
                 f"les abbréviations."
             )
@@ -228,16 +349,17 @@ class TiragePhase(Phase):
             )
             sleep(0.5)
             await ctx.send(
-                f"Chaque équipe peut refuser jusqu'a {len(PROBLEMS) - 5} "
+                f"Chaque équipe peut refuser jusqu'a {MAX_REFUSE} "
                 f"problèmes sans pénalité (voir §13 du règlement). "
                 f"Un problème déjà rejeté ne compte pas deux fois."
             )
-            await ctx.send("C'est parti !")
-            sleep(0.5)
-            await self.send_instructions(ctx)
+            await ctx.send("Bonne chance à tous ! C'est parti...")
+            sleep(1.5)
 
-    async def send_instructions(self, ctx):
-        pass
+            await ctx.send(
+                f"{self.current_team.mention} à toi l'honneur! "
+                f"Lance `!random-problem` quand tu veux."
+            )
 
 
 class PassageOrderPhase(OrderPhase):
@@ -387,6 +509,41 @@ async def random_problem(ctx: Context):
     problems = [p.strip() for p in problems]
     problem = random.choice(problems)
     await ctx.send(f"Le problème tiré est... **{problem}**")
+
+    channel = ctx.channel.id
+    if channel in tirages:
+        # If it is a captain
+        author: discord.Member = ctx.author
+        if get(author.roles, name=CAPTAIN_ROLE) is not None:
+            await tirages[channel].choose_problem(ctx, ctx.author, problem)
+
+
+@bot.command(
+    name="accept",
+    help="Accepte le problème qui vient d'être tiré. \n Ne fonctionne que lors d'un tirage.",
+    aliases=["oui", "yes", "o", "accepte", "ouiiiiiii"],
+)
+async def accept_cmd(ctx):
+    channel = ctx.channel.id
+    if channel in tirages:
+        # If it is a captain
+        author: discord.Member = ctx.author
+        if get(author.roles, name=CAPTAIN_ROLE) is not None:
+            await tirages[channel].accept(ctx, ctx.author, True)
+
+
+@bot.command(
+    name="refuse",
+    help="Refuse le problème qui vient d'être tiré. \n Ne fonctionne que lors d'un tirage.",
+    aliases=["non", "no", "n"],
+)
+async def refuse_cmd(ctx):
+    channel = ctx.channel.id
+    if channel in tirages:
+        # If it is a captain
+        author: discord.Member = ctx.author
+        if get(author.roles, name=CAPTAIN_ROLE) is not None:
+            await tirages[channel].accept(ctx, ctx.author, False)
 
 
 @bot.event
