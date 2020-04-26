@@ -6,7 +6,7 @@ import traceback
 from collections import defaultdict
 from operator import attrgetter
 from time import sleep
-from typing import Dict
+from typing import Dict, Type
 
 import discord
 from discord.ext import commands
@@ -31,6 +31,8 @@ with open("problems") as f:
     PROBLEMS = f.read().splitlines()
 MAX_REFUSE = len(PROBLEMS) - 5
 
+ROUND_NAMES = ["premier tour", "deuxième tour"]
+
 
 class TfjmError(Exception):
     def __init__(self, msg):
@@ -44,12 +46,12 @@ class Team:
     def __init__(self, ctx, name):
         self.name = name
         self.role = get(ctx.guild.roles, name=name)
-        self.tirage_order = None
-        self.passage_order = None
+        self.tirage_order = [None, None]
+        self.passage_order = [None, None]
 
-        self.accepted_problem = None
+        self.accepted_problems = [None, None]
         self.drawn_problem = None  # Waiting to be accepted or refused
-        self.rejected = set()
+        self.rejected = [set(), set()]
 
     @property
     def mention(self):
@@ -62,7 +64,7 @@ class Tirage:
 
         self.channel = channel
         self.teams = [Team(ctx, team) for team in teams]
-        self.phase = TirageOrderPhase(self)
+        self.phase = TirageOrderPhase(self, round=0)
 
     def team_for(self, author):
         for team in self.teams:
@@ -89,21 +91,34 @@ class Tirage:
 
     async def update_phase(self, ctx):
         if self.phase.finished():
-            self.phase = await self.phase.next(ctx)
+            next_class = await self.phase.next(ctx)
 
-            if self.phase is None:
+            if next_class is None:
                 await ctx.send(
                     "Le tirage est fini ! Bonne chance à tous pour la suite !"
                 )
                 del tirages[self.channel]
             else:
+                # Continue on the same round.
+                # If a Phase wants to change the round
+                # it needs to change its own round.
+                self.phase = next_class(self, self.phase.round)
                 await self.phase.start(ctx)
 
 
 class Phase:
     NEXT = None
 
-    def __init__(self, tirage):
+    def __init__(self, tirage, round=0):
+        """
+        A Phase of the tirage.
+
+        :param tirage: Backreference to the tirage
+        :param round: round number, 0 for the first round and 1 for the second
+        """
+
+        assert round in (0, 1)
+        self.round = round
         self.tirage: Tirage = tirage
 
     async def fais_pas_chier(self, ctx):
@@ -140,24 +155,22 @@ class Phase:
     async def start(self, ctx):
         pass
 
-    async def next(self, ctx: Context) -> "Phase":
-        if self.NEXT is None:
-            return None
-        return self.NEXT(self.tirage)
+    async def next(self, ctx: Context) -> "Type[Phase]":
+        return self.NEXT
 
 
 class OrderPhase(Phase):
-    def __init__(self, tirage, name, order_name, reverse=False):
-        super().__init__(tirage)
+    def __init__(self, tirage, round, name, order_name, reverse=False):
+        super().__init__(tirage, round)
         self.name = name
         self.reverse = reverse
         self.order_name = order_name
 
     def order_for(self, team):
-        return getattr(team, self.order_name)
+        return getattr(team, self.order_name)[self.round]
 
     def set_order_for(self, team, order):
-        setattr(team, self.order_name, order)
+        getattr(team, self.order_name)[self.round] = order
 
     async def dice(self, ctx, author, dice):
         team = self.team_for(author)
@@ -171,22 +184,20 @@ class OrderPhase(Phase):
     def finished(self) -> bool:
         return all(self.order_for(team) is not None for team in self.teams)
 
-    async def next(self, ctx) -> "Phase":
+    async def next(self, ctx) -> "Type[Phase]":
         orders = [self.order_for(team) for team in self.teams]
         if len(set(orders)) == len(orders):
             # All dice are different: good
             self.teams.sort(key=self.order_for, reverse=self.reverse)
             await ctx.send(
-                f"L'ordre {self.name} pour ce tour est donc :\n"
+                f"L'ordre {self.name} pour ce 9 est donc :\n"
                 " - "
                 + "\n - ".join(
                     f"{team.role.mention} ({self.order_for(team)})"
                     for team in self.teams
                 )
             )
-            if self.NEXT is not None:
-                return self.NEXT(self.tirage)
-            return None
+            return self.NEXT
         else:
             # Find dice that are the same
             count = defaultdict(list)
@@ -206,14 +217,29 @@ class OrderPhase(Phase):
             )
             for team in re_do:
                 self.set_order_for(team, None)
-            return self
+            # We need to do this phase again.
+            return self.__class__
+
+
+class ShowPhase(Phase):
+    """Phase where the bot resumes all that happened."""
+
+    NEXT = None
 
 
 class TiragePhase(Phase):
     """The phase where captains accept or refuse random problems."""
 
-    def __init__(self, tirage):
-        super().__init__(tirage)
+    NEXT = ShowPhase
+
+    def __init__(self, tirage, round=0):
+        """
+        The main phase of the Tirage.
+        :param tirage: Backreference to the tirage
+        :param round: round number, 0 for the first round and 1 for the second
+        """
+
+        super().__init__(tirage, round)
         self.turn = 0
 
     @property
@@ -221,7 +247,7 @@ class TiragePhase(Phase):
         return self.teams[self.turn]
 
     def available(self, problem):
-        return all(team.accepted_problem != problem for team in self.teams)
+        return all(team.accepted_problems[self.round] != problem for team in self.teams)
 
     async def choose_problem(self, ctx: Context, author, problem):
         team = self.current_team
@@ -232,7 +258,9 @@ class TiragePhase(Phase):
             )
             return
 
-        assert team.accepted_problem is None, "Choosing pb for a team that has a pb..."
+        assert (
+            team.accepted_problems[self.round] is None
+        ), "Choosing pb for a team that has a pb..."
 
         if team.drawn_problem:
             await ctx.send(
@@ -244,7 +272,13 @@ class TiragePhase(Phase):
                 f"Malheureusement, **{problem}** à déjà été choisi, "
                 f"vous pouvez tirer un nouveau problème."
             )
-        elif problem in team.rejected:
+        elif problem in team.accepted_problems:
+            await ctx.send(
+                f"{team.mention} à tiré **{problem}** mais "
+                f"l'a déjà présenté au premier tour. "
+                f"Vous pouvez directement piocher un autre problème (`!rp`)."
+            )
+        elif problem in team.rejected[self.round]:
             team.drawn_problem = problem
             await ctx.send(
                 f"Vous avez déjà refusé **{problem}**, "
@@ -254,7 +288,7 @@ class TiragePhase(Phase):
             )
         else:
             team.drawn_problem = problem
-            if len(team.rejected) >= MAX_REFUSE:
+            if len(team.rejected[self.round]) >= MAX_REFUSE:
                 await ctx.send(
                     f"Vous pouvez accepter ou refuser **{problem}** "
                     f"mais si vous choisissez de le refuser, il y "
@@ -264,7 +298,7 @@ class TiragePhase(Phase):
             else:
                 await ctx.send(
                     f"Vous pouvez accepter (`!oui`) ou refuser (`!non`) **{problem}**. "
-                    f"Il reste {MAX_REFUSE - len(team.rejected)} refus sans pénalité "
+                    f"Il reste {MAX_REFUSE - len(team.rejected[self.round])} refus sans pénalité "
                     f"pour {team.mention}."
                 )
 
@@ -278,7 +312,9 @@ class TiragePhase(Phase):
             )
             return
 
-        assert team.accepted_problem is None, "Choosing pb for a team that has a pb..."
+        assert (
+            team.accepted_problems[self.round] is None
+        ), "Choosing pb for a team that has a pb..."
 
         if not team.drawn_problem:
             if yes:
@@ -293,20 +329,20 @@ class TiragePhase(Phase):
                 )
         else:
             if yes:
-                team.accepted_problem = team.drawn_problem
+                team.accepted_problems[self.round] = team.drawn_problem
                 await ctx.send(
                     f"L'équipe {team.mention} a accepté "
-                    f"**{team.accepted_problem}** ! Les autres équipes "
+                    f"**{team.accepted_problems[self.round]}** ! Les autres équipes "
                     f"ne peuvent plus l'accepter."
                 )
             else:
-                if team.drawn_problem in team.rejected:
+                if team.drawn_problem in team.rejected[self.round]:
                     await ctx.send(
                         f"{team.mention} a refusé **{team.drawn_problem}** "
                         f"sans pénalité."
                     )
                 else:
-                    team.rejected.add(team.drawn_problem)
+                    team.rejected[self.round].add(team.drawn_problem)
                     await ctx.send(f"{team.mention} a refusé **{team.drawn_problem}**!")
 
             team.drawn_problem = None
@@ -318,7 +354,7 @@ class TiragePhase(Phase):
 
             # Find next team that needs to draw.
             i = (self.turn + 1) % len(self.teams)
-            while self.teams[i].accepted_problem:
+            while self.teams[i].accepted_problems[self.round]:
                 i = (i + 1) % len(self.teams)
             self.turn = i
 
@@ -327,13 +363,13 @@ class TiragePhase(Phase):
             )
 
     def finished(self) -> bool:
-        return all(team.accepted_problem for team in self.teams)
+        return all(team.accepted_problems[self.round] for team in self.teams)
 
     async def start(self, ctx: Context):
         # First sort teams according to the tirage_order
-        self.teams.sort(key=attrgetter("tirage_order"))
+        self.teams.sort(key=lambda team: team.tirage_order[self.round])
 
-        async with ctx.typing():
+        if self.round == 0:
             sleep(0.5)
             await ctx.send("Passons au tirage des problèmes !")
             sleep(0.5)
@@ -354,12 +390,28 @@ class TiragePhase(Phase):
                 f"Un problème déjà rejeté ne compte pas deux fois."
             )
             await ctx.send("Bonne chance à tous ! C'est parti...")
-            sleep(1.5)
 
+        else:
+            # Second round
+            sleep(0.5)
             await ctx.send(
-                f"{self.current_team.mention} à toi l'honneur! "
-                f"Lance `!random-problem` quand tu veux."
+                "Il reste juste le tirage du deuxième tour. Les règles sont les mêmes qu'avant "
+                "à la seule différence qu'une équipe ne peut pas tirer le problème "
+                "sur lequel elle est passée au premier tour."
             )
+
+        sleep(1.5)
+        await ctx.send(
+            f"{self.current_team.mention} à toi l'honneur! "
+            f"Lance `!random-problem` quand tu veux."
+        )
+
+    async def next(self, ctx: Context) -> "Type[Phase]":
+        if self.round == 0:
+            await ctx.send("Nous allons passer au deuxième tour")
+            self.round = 1
+            return TirageOrderPhase
+        return ShowPhase
 
 
 class PassageOrderPhase(OrderPhase):
@@ -367,8 +419,8 @@ class PassageOrderPhase(OrderPhase):
 
     NEXT = TiragePhase
 
-    def __init__(self, tirage):
-        super().__init__(tirage, "de passage", "passage_order", True)
+    def __init__(self, tirage, round=0):
+        super().__init__(tirage, round, "de passage", "passage_order", True)
 
     async def start(self, ctx):
         await ctx.send(
@@ -390,16 +442,17 @@ class TirageOrderPhase(OrderPhase):
 
     NEXT = PassageOrderPhase
 
-    def __init__(self, tirage):
-        super().__init__(tirage, "des tirages", "tirage_order", False)
+    def __init__(self, tirage, round=0):
+        super().__init__(tirage, round, "des tirages", "tirage_order", False)
 
     async def start(self, ctx):
         captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
 
         sleep(0.5)  # The bot is more human if it doesn't type at the speed of light
         await ctx.send(
-            "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes, "
-            "puis l'ordre de passage lors du tour."
+            "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes "
+            f"pour le {ROUND_NAMES[self.round]}, "
+            "puis l'ordre de passage lors de ce tour."
         )
         sleep(0.5)
         await ctx.send(
@@ -454,8 +507,8 @@ async def draw_skip(ctx, *teams):
 
     tirage.phase = TiragePhase(tirage)
     for i, team in enumerate(tirage.teams):
-        team.tirage_order = i
-        team.passage_order = i
+        team.tirage_order = [i, None]
+        team.passage_order = [i, None]
 
     await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
     await tirage.phase.start(ctx)
