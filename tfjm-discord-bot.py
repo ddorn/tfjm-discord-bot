@@ -4,7 +4,7 @@ import os
 import random
 import sys
 import traceback
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from operator import attrgetter
 from time import sleep
 from typing import Dict, Type
@@ -35,6 +35,10 @@ with open("problems") as f:
 MAX_REFUSE = len(PROBLEMS) - 5
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]
+
+
+def in_passage_order(teams, round=0):
+    return sorted(teams, key=lambda team: team.passage_order[round], reverse=True)
 
 
 class TfjmError(Exception):
@@ -97,6 +101,10 @@ class Tirage:
             next_class = await self.phase.next(ctx)
 
             if next_class is None:
+                await ctx.send(
+                    "Le tirage est fini ! Bonne chance à tous pour la suite !"
+                )
+                await self.show_tirage(ctx)
                 await self.end(ctx)
             else:
                 # Continue on the same round.
@@ -106,12 +114,60 @@ class Tirage:
                 await self.phase.start(ctx)
 
     async def end(self, ctx):
-        await ctx.send("Le tirage est fini ! Bonne chance à tous pour la suite !")
+
         del tirages[self.channel]
 
         # Allow everyone to send messages again
         send = discord.PermissionOverwrite(send_messages=None)  # reset
-        await ctx.channel.edit(overwrites={ctx.guidl.default_role: send})
+        await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
+
+    async def show_tirage(self, ctx):
+        teams = ", ".join(team.mention for team in self.teams)
+        msg = f"Voici un résumé du tirage entre les équipes {teams}."
+
+        if len(self.teams) == 3:
+            table = """```
+    +-----+---------+---------+---------+
+    |     | Phase 1 | Phase 2 | Phase 3 |
+    |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
+    +-----+---------+---------+---------+
+    | {0.name} |   Déf   |   Rap   |   Opp   |
+    +-----+---------+---------+---------+
+    | {1.name} |   Opp   |   Déf   |   Rap   |
+    +-----+---------+---------+---------+
+    | {2.name} |   Rap   |   Opp   |   Déf   |
+    +-----+---------+---------+---------+
+```"""
+        else:
+            table = """```
+    +-----+---------+---------+---------+---------+
+    |     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
+    |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |   Pb {3.pb}  |
+    +-----+---------+---------+---------+---------+
+    | {0.name} |   Déf   |         |   Rap   |   Opp   |
+    +-----+---------+---------+---------+---------+
+    | {0.name} |   Opp   |   Déf   |         |   Rap   |
+    +-----+---------+---------+---------+---------+
+    | {0.name} |   Rap   |   Opp   |   Déf   |         |
+    +-----+---------+---------+---------+---------+
+    | {0.name} |         |   Rap   |   Opp   |   Déf   |
+    +-----+---------+---------+---------+---------+
+```"""
+        Record = namedtuple("Record", ["name", "pb"])
+        records = [
+            [
+                Record(team.name, team.accepted_problems[round][0])
+                for team in in_passage_order(self.teams, round)
+            ]
+            for round in (0, 1)
+        ]
+
+        msg += "\n\nPremier tour:\n"
+        msg += table.format(*records[0])
+        msg += "\n\n Deuxième tour:\n"
+        msg += table.format(*records[1])
+
+        await ctx.send(msg)
 
 
 class Phase:
@@ -229,16 +285,8 @@ class OrderPhase(Phase):
             return self.__class__
 
 
-class ShowPhase(Phase):
-    """Phase where the bot resumes all that happened."""
-
-    NEXT = None
-
-
 class TiragePhase(Phase):
     """The phase where captains accept or refuse random problems."""
-
-    NEXT = ShowPhase
 
     def __init__(self, tirage, round=0):
         """
@@ -419,7 +467,7 @@ class TiragePhase(Phase):
             await ctx.send("Nous allons passer au deuxième tour")
             self.round = 1
             return TirageOrderPhase
-        return ShowPhase
+        return None
 
 
 class PassageOrderPhase(OrderPhase):
@@ -532,7 +580,6 @@ async def abort_draw_cmd(ctx):
     if channel_id in tirages:
         await tirages[channel_id].end(ctx)
         await ctx.send("Le tirage est annulé.")
-        del tirages[channel_id]
 
 
 @bot.command(name="draw-skip")
@@ -540,10 +587,11 @@ async def draw_skip(ctx, *teams):
     channel = ctx.channel.id
     tirages[channel] = tirage = Tirage(ctx, channel, teams)
 
-    tirage.phase = TiragePhase(tirage)
+    tirage.phase = TiragePhase(tirage, round=1)
     for i, team in enumerate(tirage.teams):
-        team.tirage_order = [i, None]
-        team.passage_order = [i, None]
+        team.tirage_order = [i, i]
+        team.passage_order = [i, i]
+        team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
 
     await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
     await tirage.phase.start(ctx)
