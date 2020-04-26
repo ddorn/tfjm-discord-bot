@@ -5,14 +5,14 @@ import random
 import sys
 import traceback
 from collections import defaultdict, namedtuple
-from operator import attrgetter
-from time import sleep
+from pathlib import Path
 from typing import Dict, Type
 
 import discord
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord.utils import get
+import yaml
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
 
@@ -35,6 +35,7 @@ with open("problems") as f:
 MAX_REFUSE = len(PROBLEMS) - 5
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]
+TIRAGES_FILE = Path(__file__).parent / "tirages.yaml"
 
 
 def in_passage_order(teams, round=0):
@@ -56,20 +57,18 @@ class UnwantedCommand(TfjmError):
         super(UnwantedCommand, self).__init__(msg)
 
 
-class Team:
+class Team(yaml.YAMLObject):
+    yaml_tag = "Team"
+
     def __init__(self, ctx, name):
         self.name = name
-        self.role = get(ctx.guild.roles, name=name)
+        self.mention = get(ctx.guild.roles, name=name).mention
         self.tirage_order = [None, None]
         self.passage_order = [None, None]
 
         self.accepted_problems = [None, None]
         self.drawn_problem = None  # Waiting to be accepted or refused
         self.rejected = [set(), set()]
-
-    @property
-    def mention(self):
-        return self.role.mention
 
     def coeff(self, round):
         if len(self.rejected[round]) <= MAX_REFUSE:
@@ -87,11 +86,13 @@ class Team:
 """
 
 
-class Tirage:
+class Tirage(yaml.YAMLObject):
+    yaml_tag = "Tirage"
+
     def __init__(self, ctx, channel, teams):
         assert len(teams) in (3, 4)
 
-        self.channel = channel
+        self.channel: int = channel
         self.teams = [Team(ctx, team) for team in teams]
         self.phase = TirageOrderPhase(self, round=0)
 
@@ -128,10 +129,11 @@ class Tirage:
             next_class = await self.phase.next(ctx)
 
             if next_class is None:
+                self.phase = None
                 await ctx.send(
                     "Le tirage est fini ! Bonne chance à tous pour la suite !"
                 )
-                await self.show_tirage(ctx)
+                await self.show(ctx)
                 await self.end(ctx)
             else:
                 # Continue on the same round.
@@ -148,7 +150,21 @@ class Tirage:
         send = discord.PermissionOverwrite()  # reset
         await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
 
-    async def show_tirage(self, ctx):
+        tl = []
+        if TIRAGES_FILE.exists():
+            with open(TIRAGES_FILE) as f:
+                tl = list(yaml.load_all(f))
+        else:
+            TIRAGES_FILE.touch()
+        tl.append(self)
+        with open(TIRAGES_FILE, "w") as f:
+            yaml.dump_all(tl, f)
+
+        await ctx.send(
+            f"A tout moment, ce rapport peut être envoyé avec `!show {len(tl) - 1}`"
+        )
+
+    async def show(self, ctx):
         teams = ", ".join(team.mention for team in self.teams)
         msg = f"Voici un résumé du tirage entre les équipes {teams}."
 
@@ -181,8 +197,9 @@ class Tirage:
     +-----+---------+---------+---------+---------+
 ```"""
         Record = namedtuple("Record", ["name", "pb", "penalite"])
-        records = [
-            [
+
+        for round in (0, 1):
+            records = [
                 Record(
                     team.name,
                     team.accepted_problems[round][0],
@@ -190,18 +207,11 @@ class Tirage:
                 )
                 for team in in_passage_order(self.teams, round)
             ]
-            for round in (0, 1)
-        ]
 
-        msg += "\n\nPremier tour:\n"
-        msg += table.format(*records[0])
-        for team in self.teams:
-            msg += team.details(0)
-
-        msg += "\n\n Deuxième tour:\n"
-        msg += table.format(*records[1])
-        for team in self.teams:
-            msg += team.details(1)
+            msg += f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
+            msg += table.format(*records[round]) + "\n"
+            for team in self.teams:
+                msg += team.details(round)
 
         await ctx.send(msg)
 
@@ -288,8 +298,7 @@ class OrderPhase(Phase):
                 f"L'ordre {self.name} pour ce tour est donc :\n"
                 " - "
                 + "\n - ".join(
-                    f"{team.role.mention} ({self.order_for(team)})"
-                    for team in self.teams
+                    f"{team.mention} ({self.order_for(team)})" for team in self.teams
                 )
             )
             return self.NEXT
@@ -705,6 +714,40 @@ async def refuse_cmd(ctx):
         await tirages[channel].accept(ctx, False)
     else:
         await ctx.send(f"{ctx.author.mention} nie tout en block !")
+
+
+@bot.command(name="show")
+async def show_cmd(ctx: Context, arg: str):
+    if not TIRAGES_FILE.exists():
+        await ctx.send("Il n'y a pas encore eu de tirages.")
+        return
+
+    with open(TIRAGES_FILE) as f:
+        tirages = list(yaml.load_all(f))
+
+    if arg.lower() == "all":
+        msg = "\n".join(
+            f"{i}: {', '.join(team.name for team in tirage.teams)}"
+            for i, tirage in enumerate(tirages)
+        )
+        await ctx.send(
+            "Voici in liste de tous les tirages qui ont été faits. "
+            "Vous pouvez en consulter un en particulier avec `!show ID`."
+        )
+        await ctx.send(msg)
+    else:
+        try:
+            n = int(arg)
+            if n < 0:
+                raise ValueError
+            tirage = tirages[n]
+        except (ValueError, IndexError):
+            await ctx.send(
+                f"`{arg}` n'est pas un identifiant valide. "
+                f"Les identifiants valides sont visibles avec `!show all`"
+            )
+        else:
+            await tirage.show(ctx)
 
 
 @bot.event
