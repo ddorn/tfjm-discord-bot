@@ -1,4 +1,5 @@
 #!/bin/python
+import asyncio
 import os
 import random
 import sys
@@ -377,20 +378,20 @@ class TiragePhase(Phase):
         self.teams.sort(key=lambda team: team.tirage_order[self.round])
 
         if self.round == 0:
-            sleep(0.5)
+            await asyncio.sleep(0.5)
             await ctx.send("Passons au tirage des problèmes !")
-            sleep(0.5)
+            await asyncio.sleep(0.5)
             await ctx.send(
                 f"Les {self.captain_mention(ctx)}s vont tirer des problèmes au "
                 f"hasard, avec `!random-problem` ou `!rp` pour ceux qui aiment "
                 f"les abbréviations."
             )
-            sleep(0.5)
+            await asyncio.sleep(0.5)
             await ctx.send(
                 "Ils pouront ensuite accepter ou refuser les problèmes avec "
                 "`!accept` ou `!refuse`."
             )
-            sleep(0.5)
+            await asyncio.sleep(0.5)
             await ctx.send(
                 f"Chaque équipe peut refuser jusqu'a {MAX_REFUSE} "
                 f"problèmes sans pénalité (voir §13 du règlement). "
@@ -400,14 +401,14 @@ class TiragePhase(Phase):
 
         else:
             # Second round
-            sleep(0.5)
+            await asyncio.sleep(0.5)
             await ctx.send(
                 "Il reste juste le tirage du deuxième tour. Les règles sont les mêmes qu'avant "
                 "à la seule différence qu'une équipe ne peut pas tirer le problème "
                 "sur lequel elle est passée au premier tour."
             )
 
-        sleep(1.5)
+        await asyncio.sleep(1.5)
         await ctx.send(
             f"{self.current_team.mention} à toi l'honneur! "
             f"Lance `!random-problem` quand tu veux."
@@ -436,7 +437,7 @@ class PassageOrderPhase(OrderPhase):
             "c'est-à-dire que l'équipe qui tire le plus grand nombre "
             "présentera en premier."
         )
-        sleep(0.5)
+        await asyncio.sleep(0.5)
 
         captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
         await ctx.send(
@@ -455,13 +456,15 @@ class TirageOrderPhase(OrderPhase):
     async def start(self, ctx):
         captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
 
-        sleep(0.5)  # The bot is more human if it doesn't type at the speed of light
+        await asyncio.sleep(
+            0.5
+        )  # The bot is more human if it doesn't type at the speed of light
         await ctx.send(
             "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes "
             f"pour le {ROUND_NAMES[self.round]}, "
             "puis l'ordre de passage lors de ce tour."
         )
-        sleep(0.5)
+        await asyncio.sleep(0.5)
         await ctx.send(
             f"Les {captain.mention}s, vous pouvez désormais lancer un dé 100 "
             "comme ceci `!dice 100`. "
