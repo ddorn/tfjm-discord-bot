@@ -25,6 +25,8 @@ if TOKEN is None:
 
 GUILD = "690934836696973404"
 ORGA_ROLE = "Orga"
+CNO_ROLE = "CNO"
+BENEVOLE_ROLE = "Bénévole"
 CAPTAIN_ROLE = "Capitaine"
 
 with open("problems") as f:
@@ -94,16 +96,21 @@ class Tirage:
             next_class = await self.phase.next(ctx)
 
             if next_class is None:
-                await ctx.send(
-                    "Le tirage est fini ! Bonne chance à tous pour la suite !"
-                )
-                del tirages[self.channel]
+                await self.end(ctx)
             else:
                 # Continue on the same round.
                 # If a Phase wants to change the round
                 # it needs to change its own round.
                 self.phase = next_class(self, self.phase.round)
                 await self.phase.start(ctx)
+
+    async def end(self, ctx):
+        await ctx.send("Le tirage est fini ! Bonne chance à tous pour la suite !")
+        del tirages[self.channel]
+
+        # Allow everyone to send messages again
+        send = discord.PermissionOverwrite(send_messages=None)  # reset
+        await ctx.channel.edit(overwrites={ctx.guidl.default_role: send})
 
 
 class Phase:
@@ -476,8 +483,9 @@ tirages: Dict[int, Tirage] = {}
 )
 @commands.has_role(ORGA_ROLE)
 async def start_draw(ctx: Context, *teams):
-    channel = ctx.channel.id
-    if channel in tirages:
+    channel: discord.TextChannel = ctx.channel
+    channel_id = channel.id
+    if channel_id in tirages:
         raise TfjmError("Il y a déjà un tirage en cours sur cette Channel.")
 
     if len(teams) not in (3, 4):
@@ -488,7 +496,19 @@ async def start_draw(ctx: Context, *teams):
         if team not in roles:
             raise TfjmError("Le nom de l'équipe doit être exactement celui du rôle.")
 
-    # Here everything should be alright
+    # Here all data should be valid
+
+    # Prevent everyone from writing except Capitaines, Orga, CNO, Benevole
+    read = discord.PermissionOverwrite(send_messages=False)
+    send = discord.PermissionOverwrite(send_messages=True)
+    r = lambda role_name: get(ctx.guild.roles, name=role_name)
+    overwrites = {
+        ctx.guild.default_role: read,
+        r(CAPTAIN_ROLE): send,
+        r(BENEVOLE_ROLE): send,
+    }
+    await channel.edit(overwrites=overwrites)
+
     await ctx.send(
         "Nous allons commencer le tirage du premier tour. "
         "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
@@ -496,8 +516,20 @@ async def start_draw(ctx: Context, *teams):
         "est accessible sur https://tfjm.org/reglement."
     )
 
-    tirages[channel] = Tirage(ctx, channel, teams)
-    await tirages[channel].phase.start(ctx)
+    tirages[channel_id] = Tirage(ctx, channel_id, teams)
+    await tirages[channel_id].phase.start(ctx)
+
+
+@bot.command(
+    name="abort-draw", help="Annule le tirage en cours.",
+)
+@commands.has_role(ORGA_ROLE)
+async def abort_draw_cmd(ctx):
+    channel_id = ctx.channel.id
+    if channel_id in tirages:
+        await tirages[channel_id].end(ctx)
+        await ctx.send("Le tirage est annulé.")
+        del tirages[channel_id]
 
 
 @bot.command(name="draw-skip")
