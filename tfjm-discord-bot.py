@@ -71,6 +71,21 @@ class Team:
     def mention(self):
         return self.role.mention
 
+    def coeff(self, round):
+        if len(self.rejected[round]) <= MAX_REFUSE:
+            return 2
+        else:
+            return 2 - 0.5 * (len(self.rejected[round]) - MAX_REFUSE)
+
+    def details(self, round):
+        return f"""{self.mention}:
+ - Accepté: {self.accepted_problems[round]}
+ - Refusés: {", ".join(p[0] for p in self.rejected[round]) if self.rejected[round] else "aucun"}
+ - Coefficient: {self.coeff(round)}
+ - Ordre au tirage: {self.tirage_order[round]}
+ - Ordre de passage: {self.passage_order[round]}
+"""
+
 
 class Tirage:
     def __init__(self, ctx, channel, teams):
@@ -165,10 +180,14 @@ class Tirage:
     | {0.name} |         |   Rap   |   Opp   |   Déf   |
     +-----+---------+---------+---------+---------+
 ```"""
-        Record = namedtuple("Record", ["name", "pb"])
+        Record = namedtuple("Record", ["name", "pb", "penalite"])
         records = [
             [
-                Record(team.name, team.accepted_problems[round][0])
+                Record(
+                    team.name,
+                    team.accepted_problems[round][0],
+                    f"k = {team.coeff(round)} ",
+                )
                 for team in in_passage_order(self.teams, round)
             ]
             for round in (0, 1)
@@ -176,8 +195,13 @@ class Tirage:
 
         msg += "\n\nPremier tour:\n"
         msg += table.format(*records[0])
+        for team in self.teams:
+            msg += team.details(0)
+
         msg += "\n\n Deuxième tour:\n"
         msg += table.format(*records[1])
+        for team in self.teams:
+            msg += team.details(1)
 
         await ctx.send(msg)
 
@@ -591,19 +615,22 @@ async def abort_draw_cmd(ctx):
         await ctx.send("Le tirage est annulé.")
 
 
-@bot.command(name="draw-skip")
+@bot.command(name="draw-skip", aliases=["skip"])
 async def draw_skip(ctx, *teams):
     channel = ctx.channel.id
     tirages[channel] = tirage = Tirage(ctx, channel, teams)
 
     tirage.phase = TiragePhase(tirage, round=1)
     for i, team in enumerate(tirage.teams):
-        team.tirage_order = [i, i]
-        team.passage_order = [i, i]
+        team.tirage_order = [i + 1, i + 1]
+        team.passage_order = [i + 1, i + 1]
         team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
+    tirage.teams[0].rejected = [{PROBLEMS[3]}, set(PROBLEMS[4:8])]
+    tirage.teams[1].rejected = [{PROBLEMS[7]}, set()]
 
     await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
     await tirage.phase.start(ctx)
+    await tirage.update_phase(ctx)
 
 
 @bot.event
@@ -689,7 +716,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
             await ctx.author.send(
                 "J'ai supprimé ton message:\n> "
                 + ctx.message.clean_content
-                + "\n\nC'est pas grave, c'est juste pour ne pas encombrer "
+                + "\nC'est pas grave, c'est juste pour ne pas encombrer "
                 "le chat lors du tirage."
             )
             await ctx.author.send("Raison: " + error.original.msg)
