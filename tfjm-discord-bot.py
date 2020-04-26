@@ -1,11 +1,13 @@
 #!/bin/python
 import asyncio
+import code
 import os
 import random
 import sys
 import traceback
 from collections import defaultdict, namedtuple
 from pathlib import Path
+from pprint import pprint
 from typing import Dict, Type
 
 import discord
@@ -39,7 +41,7 @@ TIRAGES_FILE = Path(__file__).parent / "tirages.yaml"
 
 
 def in_passage_order(teams, round=0):
-    return sorted(teams, key=lambda team: team.passage_order[round], reverse=True)
+    return sorted(teams, key=lambda team: team.passage_order[round] or 0, reverse=True)
 
 
 class TfjmError(Exception):
@@ -202,14 +204,15 @@ class Tirage(yaml.YAMLObject):
             records = [
                 Record(
                     team.name,
-                    team.accepted_problems[round][0],
+                    (team.accepted_problems[round] or "- None")[0],
                     f"k = {team.coeff(round)} ",
                 )
                 for team in in_passage_order(self.teams, round)
             ]
 
             msg += f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
-            msg += table.format(*records[round]) + "\n"
+            code.interact(local=locals())
+            msg += table.format(*records) + "\n"
             for team in self.teams:
                 msg += team.details(round)
 
@@ -625,6 +628,7 @@ async def abort_draw_cmd(ctx):
 
 
 @bot.command(name="draw-skip", aliases=["skip"])
+@commands.has_role(CNO_ROLE)
 async def draw_skip(ctx, *teams):
     channel = ctx.channel.id
     tirages[channel] = tirage = Tirage(ctx, channel, teams)
@@ -748,6 +752,24 @@ async def show_cmd(ctx: Context, arg: str):
             )
         else:
             await tirage.show(ctx)
+
+
+@bot.command()
+@commands.has_role(CNO_ROLE)
+async def interrupt_cmd(ctx):
+    await ctx.send(
+        "J'ai été arrêté et une console interactive a été ouverte là où je tourne. "
+        "Toutes les commandes rateront tant que cette console est ouverte.\n"
+        "Soyez rapides, je déteste les opérations à coeur ouvert... :confounded:"
+    )
+
+    # Utility function
+    def _show(o):
+        print(*dir(o), sep="\n")
+
+    code.interact(local={**globals(), **locals()})
+
+    await ctx.send("Tout va mieux !")
 
 
 @bot.event

@@ -1,0 +1,57 @@
+&id001 !<Tirage>
+channel: 703310860365594624
+phase: !!python/object:__main__.TirageOrderPhase
+  name: des tirages
+  order_name: tirage_order
+  reverse: false
+  round: 0
+  tirage: *id001
+teams:
+- !<Team>
+  accepted_problems:
+  - null
+  - null
+  drawn_problem: null
+  mention: <@&703923322483900426>
+  name: AAA
+  passage_order:
+  - null
+  - null
+  rejected:
+  - !!set {}
+  - !!set {}
+  tirage_order:
+  - null
+  - null
+- !<Team>
+  accepted_problems:
+  - null
+  - null
+  drawn_problem: null
+  mention: <@&703923681931296831>
+  name: BBB
+  passage_order:
+  - null
+  - null
+  rejected:
+  - !!set {}
+  - !!set {}
+  tirage_order:
+  - null
+  - null
+- !<Team>
+  accepted_problems:
+  - null
+  - null
+  drawn_problem: null
+  mention: <@&703923724465733632>
+  name: CCC
+  passage_order:
+  - null
+  - null
+  rejected:
+  - !!set {}
+  - !!set {}
+  tirage_order:
+  - null
+  - null
