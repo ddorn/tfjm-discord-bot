@@ -49,6 +49,13 @@ class TfjmError(Exception):
         return self.msg
 
 
+class UnwantedCommand(TfjmError):
+    def __init__(self, msg=None):
+        if msg is None:
+            msg = "Cette commande n'était pas attendu à ce moment."
+        super(UnwantedCommand, self).__init__(msg)
+
+
 class Team:
     def __init__(self, ctx, name):
         self.name = name
@@ -84,16 +91,21 @@ class Tirage:
             "merci de ne pas intervenir."
         )
 
-    async def dice(self, ctx, author, dice):
-        await self.phase.dice(ctx, author, dice)
+    async def dice(self, ctx, n) -> bool:
+        if n != 100:
+            raise UnwantedCommand(
+                "C'est un dé à 100 faces qu'il faut tirer! (`!dice 100`)"
+            )
+
+        await self.phase.dice(ctx, ctx.author, random.randint(1, n))
         await self.update_phase(ctx)
 
-    async def choose_problem(self, ctx, author, problem):
-        await self.phase.choose_problem(ctx, author, problem)
+    async def choose_problem(self, ctx):
+        await self.phase.choose_problem(ctx, ctx.author, random.choice(PROBLEMS))
         await self.update_phase(ctx)
 
-    async def accept(self, ctx, author, yes):
-        await self.phase.accept(ctx, author, yes)
+    async def accept(self, ctx, yes):
+        await self.phase.accept(ctx, ctx.author, yes)
         await self.update_phase(ctx)
 
     async def update_phase(self, ctx):
@@ -118,7 +130,7 @@ class Tirage:
         del tirages[self.channel]
 
         # Allow everyone to send messages again
-        send = discord.PermissionOverwrite(send_messages=None)  # reset
+        send = discord.PermissionOverwrite()  # reset
         await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
 
     async def show_tirage(self, ctx):
@@ -185,11 +197,6 @@ class Phase:
         self.round = round
         self.tirage: Tirage = tirage
 
-    async def fais_pas_chier(self, ctx):
-        await ctx.send(
-            "Merci d'envoyer seulement les commandes nécessaires et suffisantes."
-        )
-
     def team_for(self, author):
         return self.tirage.team_for(author)
 
@@ -205,13 +212,13 @@ class Phase:
         return get(ctx.guild.roles, name=CAPTAIN_ROLE).mention
 
     async def dice(self, ctx: Context, author, dice):
-        await self.fais_pas_chier(ctx)
+        raise UnwantedCommand()
 
     async def choose_problem(self, ctx: Context, author, problem):
-        await self.fais_pas_chier(ctx)
+        raise UnwantedCommand()
 
     async def accept(self, ctx: Context, author, yes):
-        await self.fais_pas_chier(ctx)
+        raise UnwantedCommand()
 
     def finished(self) -> bool:
         return NotImplemented
@@ -241,9 +248,9 @@ class OrderPhase(Phase):
 
         if self.order_for(team) is None:
             self.set_order_for(team, dice)
-            print(f"Team {team.name} has rolled {dice}")
+            await ctx.send(f"L'équipe {team.mention} a obtenu... **{dice}**")
         else:
-            await ctx.send(f"{author.mention}: merci de ne lancer qu'un dé.")
+            raise UnwantedCommand("tu as déjà lancé un dé !")
 
     def finished(self) -> bool:
         return all(self.order_for(team) is not None for team in self.teams)
@@ -254,7 +261,7 @@ class OrderPhase(Phase):
             # All dice are different: good
             self.teams.sort(key=self.order_for, reverse=self.reverse)
             await ctx.send(
-                f"L'ordre {self.name} pour ce 9 est donc :\n"
+                f"L'ordre {self.name} pour ce tour est donc :\n"
                 " - "
                 + "\n - ".join(
                     f"{team.role.mention} ({self.order_for(team)})"
@@ -308,22 +315,23 @@ class TiragePhase(Phase):
     async def choose_problem(self, ctx: Context, author, problem):
         team = self.current_team
         if self.team_for(author) != team:
-            await ctx.send(
-                f"{author.mention}: c'est à {team.mention} "
-                f"de choisir un problème, merci d'attendre :)"
+            raise UnwantedCommand(
+                f"C'est à {team.mention} de choisir "
+                f"un problème, merci d'attendre :)"
             )
-            return
 
         assert (
             team.accepted_problems[self.round] is None
         ), "Choosing pb for a team that has a pb..."
 
         if team.drawn_problem:
-            await ctx.send(
+            raise UnwantedCommand(
                 "Vous avez déjà tiré un problème, merci de l'accepter (`!yes`) "
                 "ou de le refuser (`!no)`."
             )
-        elif not self.available(problem):
+
+        await ctx.send(f"{team.mention} a tiré **{problem}** !")
+        if not self.available(problem):
             await ctx.send(
                 f"Malheureusement, **{problem}** à déjà été choisi, "
                 f"vous pouvez tirer un nouveau problème."
@@ -362,11 +370,10 @@ class TiragePhase(Phase):
         team = self.current_team
 
         if self.team_for(author) != team:
-            await ctx.send(
-                f"{author.mention}: c'est à {team.mention} "
+            raise UnwantedCommand(
+                f"c'est à {team.mention} "
                 f"de choisir un problème, merci d'attendre :)"
             )
-            return
 
         assert (
             team.accepted_problems[self.round] is None
@@ -374,14 +381,14 @@ class TiragePhase(Phase):
 
         if not team.drawn_problem:
             if yes:
-                await ctx.send(
-                    "Vous êtes bien optimistes pour vouloir accepter un problème "
+                raise UnwantedCommand(
+                    "Tu es bien optimiste pour vouloir accepter un problème "
                     "avant de l'avoir tiré !"
                 )
             else:
-                await ctx.send(
+                raise UnwantedCommand(
                     "Halte là ! Ce serait bien de tirer un problème d'abord... "
-                    "et peut-être qu'il vous plaira :) "
+                    "et peut-être qu'il te plaira :) "
                 )
         else:
             if yes:
@@ -392,14 +399,13 @@ class TiragePhase(Phase):
                     f"ne peuvent plus l'accepter."
                 )
             else:
+                msg = f"{team.mention} a refusé **{team.drawn_problem}** "
                 if team.drawn_problem in team.rejected[self.round]:
-                    await ctx.send(
-                        f"{team.mention} a refusé **{team.drawn_problem}** "
-                        f"sans pénalité."
-                    )
+                    msg += "sans pénalité."
                 else:
+                    msg += "!"
                     team.rejected[self.round].add(team.drawn_problem)
-                    await ctx.send(f"{team.mention} a refusé **{team.drawn_problem}**!")
+                await ctx.send(msg)
 
             team.drawn_problem = None
 
@@ -542,7 +548,7 @@ async def start_draw(ctx: Context, *teams):
     if len(teams) not in (3, 4):
         raise TfjmError("Il faut 3 ou 4 équipes pour un tirage.")
 
-    roles = [role.name for role in ctx.guild.roles]
+    roles = {role.name for role in ctx.guild.roles}
     for team in teams:
         if team not in roles:
             raise TfjmError("Le nom de l'équipe doit être exactement celui du rôle.")
@@ -563,6 +569,9 @@ async def start_draw(ctx: Context, *teams):
     await ctx.send(
         "Nous allons commencer le tirage du premier tour. "
         "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
+        "Merci de d'envoyer seulement ce que est nécessaire et suffusant au "
+        "bon déroulement du tournoi. Vous pouvez à tout moment poser toute question "
+        "si quelque chose n'est pas clair ou ne va pas. \n\n"
         "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
         "est accessible sur https://tfjm.org/reglement."
     )
@@ -609,19 +618,15 @@ async def on_ready():
     usage="n",
 )
 async def dice(ctx: Context, n: int):
-    if n < 1:
-        raise TfjmError(f"Je ne peux pas lancer un dé à {n} faces, désolé.")
-
-    dice = random.randint(1, n)
-    await ctx.send(f"Le dé à {n} faces s'est arrêté sur... **{dice}**")
-
-    # Here we seed the result to Tirage if needed
     channel = ctx.channel.id
-    if n == 100 and channel in tirages:
-        # If it is a captain
-        author: discord.Member = ctx.author
-        if get(author.roles, name=CAPTAIN_ROLE) is not None:
-            await tirages[channel].dice(ctx, author, dice)
+    if channel in tirages:
+        await tirages[channel].dice(ctx, n)
+    else:
+        if n < 1:
+            raise TfjmError(f"Je ne peux pas lancer un dé à {n} faces, désolé.")
+
+        dice = random.randint(1, n)
+        await ctx.send(f"Le dé à {n} face{'s'*(n>1)} s'est arrêté sur... **{dice}**")
 
 
 @bot.command(
@@ -641,17 +646,12 @@ async def choose(ctx: Context, *args):
     aliases=["rp", "problème-aléatoire", "probleme-aleatoire", "pa"],
 )
 async def random_problem(ctx: Context):
-    problems = open("problems").readlines()
-    problems = [p.strip() for p in problems]
-    problem = random.choice(problems)
-    await ctx.send(f"Le problème tiré est... **{problem}**")
-
     channel = ctx.channel.id
     if channel in tirages:
-        # If it is a captain
-        author: discord.Member = ctx.author
-        if get(author.roles, name=CAPTAIN_ROLE) is not None:
-            await tirages[channel].choose_problem(ctx, ctx.author, problem)
+        await tirages[channel].choose_problem(ctx)
+    else:
+        problem = random.choice(PROBLEMS)
+        await ctx.send(f"Le problème tiré est... **{problem}**")
 
 
 @bot.command(
@@ -662,31 +662,41 @@ async def random_problem(ctx: Context):
 async def accept_cmd(ctx):
     channel = ctx.channel.id
     if channel in tirages:
-        # If it is a captain
-        author: discord.Member = ctx.author
-        if get(author.roles, name=CAPTAIN_ROLE) is not None:
-            await tirages[channel].accept(ctx, ctx.author, True)
+        await tirages[channel].accept(ctx, True)
+    else:
+        await ctx.send(f"{ctx.author.mention} approuve avec vigeur !")
 
 
 @bot.command(
     name="refuse",
     help="Refuse le problème qui vient d'être tiré. \n Ne fonctionne que lors d'un tirage.",
-    aliases=["non", "no", "n"],
+    aliases=["non", "no", "n", "nope", "jaaamais"],
 )
 async def refuse_cmd(ctx):
     channel = ctx.channel.id
     if channel in tirages:
-        # If it is a captain
-        author: discord.Member = ctx.author
-        if get(author.roles, name=CAPTAIN_ROLE) is not None:
-            await tirages[channel].accept(ctx, ctx.author, False)
+        await tirages[channel].accept(ctx, False)
+    else:
+        await ctx.send(f"{ctx.author.mention} nie tout en block !")
 
 
 @bot.event
 async def on_command_error(ctx: Context, error, *args, **kwargs):
     if isinstance(error, commands.CommandInvokeError):
-        msg = str(error.original) or str(error)
-        traceback.print_tb(error.original.__traceback__, file=sys.stderr)
+        if isinstance(error.original, UnwantedCommand):
+            await ctx.message.delete()
+            author: discord.Message
+            await ctx.author.send(
+                "J'ai supprimé ton message:\n> "
+                + ctx.message.clean_content
+                + "\n\nC'est pas grave, c'est juste pour ne pas encombrer "
+                "le chat lors du tirage."
+            )
+            await ctx.author.send("Raison: " + error.original.msg)
+            return
+        else:
+            msg = str(error.original) or str(error)
+            traceback.print_tb(error.original.__traceback__, file=sys.stderr)
     else:
         msg = str(error)
 
