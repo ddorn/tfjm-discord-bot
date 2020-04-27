@@ -32,11 +32,11 @@ class Role:
     CAPTAIN = "Capitaine"
 
 
-with open("problems") as f:
-    PROBLEMS = f.read().splitlines()
-MAX_REFUSE = len(PROBLEMS) - 5
-
 ROUND_NAMES = ["premier tour", "deuxième tour"]
 
 TOP_LEVEL_DIR = Path(__file__).parent.parent
 TIRAGES_FILE = TOP_LEVEL_DIR / "data" / "tirages.yaml"
+
+with open(TOP_LEVEL_DIR / "data" / "problems") as f:
+    PROBLEMS = f.read().splitlines()
+MAX_REFUSE = len(PROBLEMS) - 5

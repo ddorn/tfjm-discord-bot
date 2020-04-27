@@ -1,5 +1,6 @@
 # Secrets
 .env
+data/teams
 
 # Files from PyCharm
 .idea/
