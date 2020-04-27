@@ -6,7 +6,8 @@ from typing import Type
 
 import discord
 import yaml
-from discord.ext.commands import Context
+from discord.ext import commands
+from discord.ext.commands import Context, group, Cog
 from discord.utils import get
 
 from src.constants import *
@@ -103,14 +104,10 @@ class Tirage(yaml.YAMLObject):
                 await self.phase.start(ctx)
 
     async def end(self, ctx):
-
-        from src.tfjm_discord_bot import tirages
-
-        del tirages[self.channel]
-
-        # Allow everyone to send messages again
-        send = discord.PermissionOverwrite()  # reset
-        await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
+        if False:
+            # Allow everyone to send messages again
+            send = discord.PermissionOverwrite()  # reset
+            await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
 
         tl = []
         if TIRAGES_FILE.exists():
@@ -519,3 +516,142 @@ class TirageOrderPhase(OrderPhase):
             "comme ceci `!dice 100`. "
             "L'ordre des tirages suivants sera l'ordre croissant des lancers. "
         )
+
+
+class TirageCog(Cog, name="Tirages"):
+    def __init__(self, bot):
+        self.bot: commands.Bot = bot
+
+        # We retrieve the global variable.
+        # We don't want tirages to be ust an attribute
+        # as we want them to outlive the Cog, for instance
+        # if the cog is reloaded turing a tirage.
+        from src.tfjm_discord_bot import tirages
+
+        self.tirages = tirages
+
+    @group(
+        name="draw", aliases=["d", "tirage"],
+    )
+    async def draw_group(self, ctx: Context) -> None:
+        """Commandes pour les tirages."""
+
+    @draw_group.command(
+        name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
+    )
+    @commands.has_role(ORGA_ROLE)
+    async def start(self, ctx: Context, *teams):
+        """
+        Commence un tirage avec 3 ou 4 équipes.
+
+        Cette commande attend trois trigrammes d'équipes, par ex:
+
+            !draw start AAA BBB CCC
+        """
+
+        channel: discord.TextChannel = ctx.channel
+        channel_id = channel.id
+        if channel_id in self.tirages:
+            raise TfjmError("Il y a déjà un tirage en cours sur cette Channel.")
+
+        if len(teams) not in (3, 4):
+            raise TfjmError("Il faut 3 ou 4 équipes pour un tirage.")
+
+        roles = {role.name for role in ctx.guild.roles}
+        for team in teams:
+            if team not in roles:
+                raise TfjmError(
+                    "Le nom de l'équipe doit être exactement celui du rôle."
+                )
+
+        # Here all data should be valid
+
+        # Prevent everyone from writing except Capitaines, Orga, CNO, Benevole
+        if False:
+            read = discord.PermissionOverwrite(send_messages=False)
+            send = discord.PermissionOverwrite(send_messages=True)
+            r = lambda role_name: get(ctx.guild.roles, name=role_name)
+            overwrites = {
+                ctx.guild.default_role: read,
+                r(CAPTAIN_ROLE): send,
+                r(BENEVOLE_ROLE): send,
+            }
+            await channel.edit(overwrites=overwrites)
+
+        await ctx.send(
+            "Nous allons commencer le tirage du premier tour. "
+            "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
+            "Merci de d'envoyer seulement ce que est nécessaire et suffisant au "
+            "bon déroulement du tournoi. Vous pouvez à tout moment poser toute question "
+            "si quelque chose n'est pas clair ou ne va pas. \n\n"
+            "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
+            "est accessible sur https://tfjm.org/reglement."
+        )
+
+        self.tirages[channel_id] = Tirage(ctx, channel_id, teams)
+        await self.tirages[channel_id].phase.start(ctx)
+
+    @draw_group.command(
+        name="abort", help="Annule le tirage en cours.",
+    )
+    @commands.has_role(ORGA_ROLE)
+    async def abort_draw_cmd(self, ctx):
+        channel_id = ctx.channel.id
+        if channel_id in self.tirages:
+            await self.tirages[channel_id].end(ctx)
+            await ctx.send("Le tirage est annulé.")
+
+    @draw_group.command(name="skip", aliases=["s"])
+    @commands.has_role(CNO_ROLE)
+    async def draw_skip(self, ctx, *teams):
+        channel = ctx.channel.id
+        self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
+
+        tirage.phase = TiragePhase(tirage, round=1)
+        for i, team in enumerate(tirage.teams):
+            team.tirage_order = [i + 1, i + 1]
+            team.passage_order = [i + 1, i + 1]
+            team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
+        tirage.teams[0].rejected = [{PROBLEMS[3]}, set(PROBLEMS[4:8])]
+        tirage.teams[1].rejected = [{PROBLEMS[7]}, set()]
+
+        await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
+        await tirage.phase.start(ctx)
+        await tirage.update_phase(ctx)
+
+    @draw_group.command(name="show")
+    async def show_cmd(self, ctx: Context, arg: str):
+        if not TIRAGES_FILE.exists():
+            await ctx.send("Il n'y a pas encore eu de tirages.")
+            return
+
+        with open(TIRAGES_FILE) as f:
+            tirages = list(yaml.load_all(f))
+
+        if arg.lower() == "all":
+            msg = "\n".join(
+                f"{i}: {', '.join(team.name for team in tirage.teams)}"
+                for i, tirage in enumerate(tirages)
+            )
+            await ctx.send(
+                "Voici in liste de tous les tirages qui ont été faits. "
+                "Vous pouvez en consulter un en particulier avec `!show ID`."
+            )
+            await ctx.send(msg)
+        else:
+            try:
+                n = int(arg)
+                if n < 0:
+                    raise ValueError
+                tirage = tirages[n]
+            except (ValueError, IndexError):
+                await ctx.send(
+                    f"`{arg}` n'est pas un identifiant valide. "
+                    f"Les identifiants valides sont visibles avec `!show all`"
+                )
+            else:
+                await tirage.show(ctx)
+
+
+def setup(bot):
+    bot.add_cog(TirageCog(bot))
