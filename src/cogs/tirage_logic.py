@@ -323,8 +323,7 @@ class TiragePhase(Phase):
         team = self.current_team
         if self.team_for(author) != team:
             raise UnwantedCommand(
-                f"C'est à {team.mention} de choisir "
-                f"un problème, merci d'attendre :)"
+                f"C'est à {team.name} de choisir " f"un problème, merci d'attendre :)"
             )
 
         assert (
