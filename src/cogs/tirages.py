@@ -190,7 +190,7 @@ class TirageCog(Cog, name="Tirages"):
         await tirage.update_phase(ctx)
 
     @draw_group.command(name="show")
-    async def show_cmd(self, ctx: Context, tirage_id: str):
+    async def show_cmd(self, ctx: Context, tirage_id: str = "all"):
         """
         Affiche le résumé d'un tirage.
 
