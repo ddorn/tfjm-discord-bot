@@ -57,8 +57,22 @@ class TeamsCog(Cog, name="Teams"):
             )
         else:
             # Team creation !
+            guild: discord.Guild = ctx.guild
+            team_role = await guild.create_role(
+                name=trigram,
+                color=discord.Colour.from_rgb(255, 255, 255),
+                reason="Creation of a new team",
+            )
+            tournoi = get(guild.roles, name=team.tournoi)
 
-            await ctx.send(f"Creation de l'équipe {trigram} avec {team_secret} !")
+            await ctx.author.add_roles(
+                team_role, captain_role, tournoi, reason="Creation of team " + trigram
+            )
+
+            await ctx.send(
+                f"L'équipe {team_role.mention} a été créée et son capitaine "
+                f"est {ctx.author.mention}"
+            )
 
 
 def setup(bot: Bot):
