@@ -95,7 +95,7 @@ class TirageCog(Cog, name="Tirages"):
         name="draw", aliases=["d", "tirage"],
     )
     async def draw_group(self, ctx: Context) -> None:
-        """Groupe de commandes pour les tirages."""
+        """Groupe de commandes pour les tirages. Détails: `!help draw`"""
 
         print("WTFF")
 
@@ -105,7 +105,7 @@ class TirageCog(Cog, name="Tirages"):
     @commands.has_role(Role.ORGA)
     async def start(self, ctx: Context, *teams: discord.Role):
         """
-        Commence un tirage avec 3 ou 4 équipes.
+        (orga) Commence un tirage avec 3 ou 4 équipes.
 
         Cette commande attend des trigrames d'équipes.
 
@@ -116,10 +116,16 @@ class TirageCog(Cog, name="Tirages"):
         channel: discord.TextChannel = ctx.channel
         channel_id = channel.id
         if channel_id in self.tirages:
-            raise TfjmError("Il y a déjà un tirage en cours sur cette Channel.")
+            raise TfjmError(
+                "Il y a déjà un tirage en cours sur cette channel, "
+                "il est possible d'en commencer un autre sur une autre channel."
+            )
 
         if len(teams) not in (3, 4):
-            raise TfjmError("Il faut 3 ou 4 équipes pour un tirage.")
+            raise TfjmError(
+                "Il faut 3 ou 4 équipes pour un tirage. "
+                "Exemple: `!draw start @AAA @BBB @CCC`"
+            )
 
         # Here all data should be valid
 
@@ -148,13 +154,11 @@ class TirageCog(Cog, name="Tirages"):
         self.tirages[channel_id] = Tirage(ctx, channel_id, teams)
         await self.tirages[channel_id].phase.start(ctx)
 
-    @draw_group.command(
-        name="abort", help="Annule le tirage en cours.",
-    )
+    @draw_group.command(name="abort")
     @commands.has_role(Role.ORGA)
     async def abort_draw_cmd(self, ctx):
         """
-        Annule le tirage en cours.
+        (orga) Annule le tirage en cours.
 
         Le tirage ne pourra pas être continué. Si besoin,
         n'hésitez pas à appeller un @dev : il peut réparer
@@ -168,7 +172,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(name="skip", aliases=["s"])
     @commands.has_role(Role.DEV)
     async def draw_skip(self, ctx, *teams: discord.Role):
-        """Skip certaines phases du tirage."""
+        """(dev) Passe certaines phases du tirage."""
         channel = ctx.channel.id
         self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
 
