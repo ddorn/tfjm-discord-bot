@@ -98,6 +98,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
 
 
 bot.load_extension("src.cogs.tirages")
+bot.load_extension("src.cogs.teams")
 
 
 if __name__ == "__main__":

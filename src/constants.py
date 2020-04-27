@@ -8,6 +8,7 @@ __all__ = [
     "MAX_REFUSE",
     "ROUND_NAMES",
     "TIRAGES_FILE",
+    "TEAMS_FILE",
 ]
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
@@ -36,6 +37,7 @@ ROUND_NAMES = ["premier tour", "deuxième tour"]
 
 TOP_LEVEL_DIR = Path(__file__).parent.parent
 TIRAGES_FILE = TOP_LEVEL_DIR / "data" / "tirages.yaml"
+TEAMS_FILE = TOP_LEVEL_DIR / "data" / "teams"
 
 with open(TOP_LEVEL_DIR / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()
