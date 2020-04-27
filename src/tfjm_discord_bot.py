@@ -13,7 +13,9 @@ from src.cogs import TfjmHelpCommand
 from src.constants import *
 from src.errors import TfjmError, UnwantedCommand
 
-bot = commands.Bot("!", help_command=TfjmHelpCommand())
+# We allow "! " to catch people that put a space in their commands.
+# It must be in first otherwise "!" always match first and the space is not recognised
+bot = commands.Bot(("! ", "!"), help_command=TfjmHelpCommand())
 
 # Variable globale qui contient les tirages.
 tirages = {}
@@ -90,6 +92,11 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
         else:
             msg = str(error.original) or str(error)
             traceback.print_tb(error.original.__traceback__, file=sys.stderr)
+    elif isinstance(error, commands.CommandNotFound):
+        # Here we just take adventage that the error is formatted this way:
+        # 'Command "NAME" is not found'
+        name = str(error).partition('"')[2].rpartition('"')[0]
+        msg = f"La commande {name} n'éxiste pas. Pour un liste des commandes, envoie `!help`."
     else:
         msg = str(error)
 
