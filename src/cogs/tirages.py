@@ -530,11 +530,78 @@ class TirageCog(Cog, name="Tirages"):
 
         self.tirages = tirages
 
+    # ---------- Commandes hors du groupe draw ----------- #
+
+    @commands.command(
+        name="dice", aliases=["de", "dé", "roll"], usage="n",
+    )
+    async def dice(self, ctx: Context, n: int):
+        """Lance un dé à `n` faces."""
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            await self.tirages[channel].dice(ctx, n)
+        else:
+            if n < 1:
+                raise TfjmError(f"Je ne peux pas lancer un dé à {n} faces, désolé.")
+
+            dice = random.randint(1, n)
+            await ctx.send(
+                f"Le dé à {n} face{'s' * (n > 1)} s'est arrêté sur... **{dice}**"
+            )
+
+    @commands.command(
+        name="random-problem",
+        aliases=["rp", "problème-aléatoire", "probleme-aleatoire", "pa"],
+    )
+    async def random_problem(self, ctx: Context):
+        """Choisit un problème parmi ceux de cette année."""
+
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            await self.tirages[channel].choose_problem(ctx)
+        else:
+            problem = random.choice(PROBLEMS)
+            await ctx.send(f"Le problème tiré est... **{problem}**")
+
+    @commands.command(
+        name="oui", aliases=["accept", "yes", "o", "accepte", "ouiiiiiii"],
+    )
+    async def accept_cmd(self, ctx):
+        """
+        Accepte le problème qui vient d'être tiré.
+
+        Sans effet si il n'y a pas de tirage en cours.
+        """
+
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            await self.tirages[channel].accept(ctx, True)
+        else:
+            await ctx.send(f"{ctx.author.mention} approuve avec vigeur !")
+
+    @commands.command(
+        name="non", aliases=["refuse", "no", "n", "nope", "jaaamais"],
+    )
+    async def refuse_cmd(self, ctx):
+        """
+        Refuse le problème qui vient d'être tiré.
+
+        Sans effet si il n'y a pas de tirage en cours.
+        """
+
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            await self.tirages[channel].accept(ctx, False)
+        else:
+            await ctx.send(f"{ctx.author.mention} nie tout en block !")
+
+    # ---------- Commandes du groupe draw ----------- #
+
     @group(
         name="draw", aliases=["d", "tirage"],
     )
     async def draw_group(self, ctx: Context) -> None:
-        """Commandes pour les tirages."""
+        """Groupe de commandes pour les tirages."""
 
     @draw_group.command(
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
@@ -596,6 +663,13 @@ class TirageCog(Cog, name="Tirages"):
     )
     @commands.has_role(ORGA_ROLE)
     async def abort_draw_cmd(self, ctx):
+        """
+        Annule le tirage en cours.
+
+        Le tirage ne pourra pas être continué. Si besoin,
+        n'hésitez pas à appeller un @dev : il peut réparer
+        plus de choses qu'on imagine (mais moins qu'on voudrait).
+        """
         channel_id = ctx.channel.id
         if channel_id in self.tirages:
             await self.tirages[channel_id].end(ctx)
@@ -604,6 +678,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(name="skip", aliases=["s"])
     @commands.has_role(CNO_ROLE)
     async def draw_skip(self, ctx, *teams):
+        """Skip certaines phases du tirage."""
         channel = ctx.channel.id
         self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
 
@@ -620,7 +695,15 @@ class TirageCog(Cog, name="Tirages"):
         await tirage.update_phase(ctx)
 
     @draw_group.command(name="show")
-    async def show_cmd(self, ctx: Context, arg: str):
+    async def show_cmd(self, ctx: Context, tirage_id: str):
+        """
+        Affiche le résumé d'un tirage
+
+        Les ID de tirages valides sont visibles avec
+        `!draw show all` et les details avec `!draw show 42`
+         (si l'ID qui vous intéresse est 42).
+        """
+
         if not TIRAGES_FILE.exists():
             await ctx.send("Il n'y a pas encore eu de tirages.")
             return
@@ -628,7 +711,7 @@ class TirageCog(Cog, name="Tirages"):
         with open(TIRAGES_FILE) as f:
             tirages = list(yaml.load_all(f))
 
-        if arg.lower() == "all":
+        if tirage_id.lower() == "all":
             msg = "\n".join(
                 f"{i}: {', '.join(team.name for team in tirage.teams)}"
                 for i, tirage in enumerate(tirages)
@@ -640,13 +723,13 @@ class TirageCog(Cog, name="Tirages"):
             await ctx.send(msg)
         else:
             try:
-                n = int(arg)
+                n = int(tirage_id)
                 if n < 0:
                     raise ValueError
                 tirage = tirages[n]
             except (ValueError, IndexError):
                 await ctx.send(
-                    f"`{arg}` n'est pas un identifiant valide. "
+                    f"`{tirage_id}` n'est pas un identifiant valide. "
                     f"Les identifiants valides sont visibles avec `!show all`"
                 )
             else:
