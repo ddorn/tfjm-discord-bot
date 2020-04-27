@@ -9,6 +9,7 @@ __all__ = [
     "ROUND_NAMES",
     "TIRAGES_FILE",
     "TEAMS_FILE",
+    "TEAMS_CHANNEL_CATEGORY",
 ]
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
@@ -33,6 +34,8 @@ class Role:
     CAPTAIN = "Capitaine"
     PARTICIPANT = "Participant"
 
+
+TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]
 

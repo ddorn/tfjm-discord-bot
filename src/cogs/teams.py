@@ -108,7 +108,7 @@ class TeamsCog(Cog, name="Teams"):
     @commands.has_role(Role.CAPTAIN)
     async def team_add(self, ctx, member: discord.Member):
         """
-        Ajoute un membre a ton équipe.
+        (cap) Ajoute un membre a ton équipe.
 
         Commande réservée aux capitaines pour ajouter un
         membre dans leur équipe. Cela permet juste de donner
@@ -147,6 +147,32 @@ class TeamsCog(Cog, name="Teams"):
             await ctx.send(
                 f"{member.mention} à été ajouté dans l'équipe {the_team[1].mention}"
             )
+
+    @team.command(name="channel", ignore_extra=False)
+    @commands.has_role(Role.CAPTAIN)
+    async def team_channel(self, ctx, channel_name):
+        """
+        (cap) Crée une channel privée pour l'équipe
+
+        Crée un endroit de discussion privé seulement pour l'équipe
+        personne d'autre n'y aura accès.
+
+        Exemple:
+            `!team channel un-nom-sympa`
+        """
+
+        guild: discord.Guild = ctx.guild
+        team_role = self.teams_for(ctx.author)[0][1]
+        team_channel_category = get(guild.categories, name=TEAMS_CHANNEL_CATEGORY)
+        await guild.create_text_channel(
+            channel_name,
+            overwrites={
+                guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                team_role: discord.PermissionOverwrite(read_messages=True),
+            },
+            category=team_channel_category,
+            reason=f"{ctx.author.name} à demandé une channel pour son équipe.",
+        )
 
 
 def setup(bot: Bot):
