@@ -2,7 +2,10 @@
 import asyncio
 import random
 from collections import defaultdict, namedtuple
-from typing import Type
+from contextlib import redirect_stdout
+from io import BytesIO, StringIO
+from pprint import pprint
+from typing import Type, TextIO
 
 import discord
 import yaml
@@ -22,15 +25,23 @@ def in_passage_order(teams, round=0):
 class Team(yaml.YAMLObject):
     yaml_tag = "Team"
 
-    def __init__(self, ctx, name):
-        self.name = name
-        self.mention = get(ctx.guild.roles, name=name).mention
+    def __init__(self, ctx, team_role):
+        self.name = team_role.name
+        self.mention = team_role.mention
         self.tirage_order = [None, None]
         self.passage_order = [None, None]
 
         self.accepted_problems = [None, None]
         self.drawn_problem = None  # Waiting to be accepted or refused
         self.rejected = [set(), set()]
+
+    def __str__(self):
+        s = StringIO()
+        pprint(self.__dict__, stream=s)
+        s.seek(0)
+        return s.read()
+
+    __repr__ = __str__
 
     def coeff(self, round):
         if len(self.rejected[round]) <= MAX_REFUSE:
@@ -105,6 +116,7 @@ class Tirage(yaml.YAMLObject):
                 await self.phase.start(ctx)
 
     async def end(self, ctx):
+        self.phase = None
         if False:
             # Allow everyone to send messages again
             send = discord.PermissionOverwrite()  # reset
@@ -116,12 +128,14 @@ class Tirage(yaml.YAMLObject):
                 tl = list(yaml.load_all(f))
         else:
             TIRAGES_FILE.touch()
+
+        pprint(self.__dict__)
         tl.append(self)
         with open(TIRAGES_FILE, "w") as f:
             yaml.dump_all(tl, f)
 
         await ctx.send(
-            f"A tout moment, ce rapport peut être envoyé avec `!show {len(tl) - 1}`"
+            f"A tout moment, ce rapport peut être envoyé avec `!draw show {len(tl) - 1}`"
         )
 
     async def show(self, ctx):

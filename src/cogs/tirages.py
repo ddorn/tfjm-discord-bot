@@ -97,11 +97,13 @@ class TirageCog(Cog, name="Tirages"):
     async def draw_group(self, ctx: Context) -> None:
         """Groupe de commandes pour les tirages."""
 
+        print("WTFF")
+
     @draw_group.command(
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
     )
     @commands.has_role(Role.ORGA)
-    async def start(self, ctx: Context, *teams):
+    async def start(self, ctx: Context, *teams: discord.Role):
         """
         Commence un tirage avec 3 ou 4 équipes.
 
@@ -118,13 +120,6 @@ class TirageCog(Cog, name="Tirages"):
 
         if len(teams) not in (3, 4):
             raise TfjmError("Il faut 3 ou 4 équipes pour un tirage.")
-
-        roles = {role.name for role in ctx.guild.roles}
-        for team in teams:
-            if team not in roles:
-                raise TfjmError(
-                    "Le nom de l'équipe doit être exactement celui du rôle."
-                )
 
         # Here all data should be valid
 
@@ -172,7 +167,7 @@ class TirageCog(Cog, name="Tirages"):
 
     @draw_group.command(name="skip", aliases=["s"])
     @commands.has_role(Role.DEV)
-    async def draw_skip(self, ctx, *teams):
+    async def draw_skip(self, ctx, *teams: discord.Role):
         """Skip certaines phases du tirage."""
         channel = ctx.channel.id
         self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
@@ -207,13 +202,14 @@ class TirageCog(Cog, name="Tirages"):
             tirages = list(yaml.load_all(f))
 
         if tirage_id.lower() == "all":
-            msg = "\n".join(
-                f"{i}: {', '.join(team.name for team in tirage.teams)}"
-                for i, tirage in enumerate(tirages)
-            )
             await ctx.send(
-                "Voici in liste de tous les tirages qui ont été faits. "
-                "Vous pouvez en consulter un en particulier avec `!show ID`."
+                "Voici in liste de tous les tirages qui ont été faits et "
+                "quelles équipes y on participé."
+                "Vous pouvez en consulter un en particulier avec `!draw show ID`."
+            )
+            msg = "\n".join(
+                f"`{i}`: {', '.join(team.name for team in tirage.teams)}"
+                for i, tirage in enumerate(tirages)
             )
             await ctx.send(msg)
         else:
@@ -225,7 +221,7 @@ class TirageCog(Cog, name="Tirages"):
             except (ValueError, IndexError):
                 await ctx.send(
                     f"`{tirage_id}` n'est pas un identifiant valide. "
-                    f"Les identifiants valides sont visibles avec `!show all`"
+                    f"Les identifiants valides sont visibles avec `!draw show all`"
                 )
             else:
                 await tirage.show(ctx)
