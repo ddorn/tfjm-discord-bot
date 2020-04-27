@@ -211,7 +211,6 @@ class Tirage(yaml.YAMLObject):
             ]
 
             msg += f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
-            code.interact(local=locals())
             msg += table.format(*records) + "\n"
             for team in self.teams:
                 msg += team.details(round)
@@ -605,7 +604,7 @@ async def start_draw(ctx: Context, *teams):
     await ctx.send(
         "Nous allons commencer le tirage du premier tour. "
         "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
-        "Merci de d'envoyer seulement ce que est nécessaire et suffusant au "
+        "Merci de d'envoyer seulement ce que est nécessaire et suffisant au "
         "bon déroulement du tournoi. Vous pouvez à tout moment poser toute question "
         "si quelque chose n'est pas clair ou ne va pas. \n\n"
         "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
@@ -754,7 +753,7 @@ async def show_cmd(ctx: Context, arg: str):
             await tirage.show(ctx)
 
 
-@bot.command()
+@bot.command(name="interrupt")
 @commands.has_role(CNO_ROLE)
 async def interrupt_cmd(ctx):
     await ctx.send(
@@ -764,11 +763,17 @@ async def interrupt_cmd(ctx):
     )
 
     # Utility function
-    def _show(o):
-        print(*dir(o), sep="\n")
 
-    code.interact(local={**globals(), **locals()})
+    local = {
+        **globals(),
+        **locals(),
+        "pprint": pprint,
+        "_show": lambda o: print(*dir(o), sep="\n"),
+        "__name__": "__console__",
+        "__doc__": None,
+    }
 
+    code.interact(banner="Ne SURTOUT PAS FAIRE Ctrl+C !\n(TFJM² debugger)", local=local)
     await ctx.send("Tout va mieux !")
 
 
