@@ -163,15 +163,16 @@ class Tirage(yaml.YAMLObject):
     +-----+---------+---------+---------+---------+
     | {0.name} |   Déf   |         |   Rap   |   Opp   |
     +-----+---------+---------+---------+---------+
-    | {0.name} |   Opp   |   Déf   |         |   Rap   |
+    | {1.name} |   Opp   |   Déf   |         |   Rap   |
     +-----+---------+---------+---------+---------+
-    | {0.name} |   Rap   |   Opp   |   Déf   |         |
+    | {2.name} |   Rap   |   Opp   |   Déf   |         |
     +-----+---------+---------+---------+---------+
-    | {0.name} |         |   Rap   |   Opp   |   Déf   |
+    | {3.name} |         |   Rap   |   Opp   |   Déf   |
     +-----+---------+---------+---------+---------+
 ```"""
         Record = namedtuple("Record", ["name", "pb", "penalite"])
 
+        await ctx.send(msg)
         for round in (0, 1):
             records = [
                 Record(
@@ -182,12 +183,11 @@ class Tirage(yaml.YAMLObject):
                 for team in in_passage_order(self.teams, round)
             ]
 
-            msg += f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
+            msg = f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
             msg += table.format(*records) + "\n"
             for team in self.teams:
                 msg += team.details(round)
-
-        await ctx.send(msg)
+            await ctx.send(msg)
 
 
 class Phase:
@@ -287,7 +287,7 @@ class OrderPhase(Phase):
                 if len(teams) > 1:
                     re_do.extend(teams)
 
-            teams_str = ", ".join(team.role.mention for team in re_do)
+            teams_str = ", ".join(team.mention for team in re_do)
             await ctx.send(
                 f"Les equipes {teams_str} ont fait le même résultat "
                 "et doivent relancer un dé. "
@@ -471,7 +471,7 @@ class TiragePhase(Phase):
 
         await asyncio.sleep(1.5)
         await ctx.send(
-            f"{self.current_team.mention} à toi l'honneur! "
+            f"{self.current_team.mention} à toi l'honneur ! "
             f"Lance `!random-problem` quand tu veux."
         )
 

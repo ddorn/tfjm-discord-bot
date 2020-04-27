@@ -31,6 +31,7 @@ class Role:
     ORGA = "Orga"
     BENEVOLE = "Bénévole"
     CAPTAIN = "Capitaine"
+    PARTICIPANT = "Participant"
 
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]

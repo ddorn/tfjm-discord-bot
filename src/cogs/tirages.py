@@ -87,7 +87,7 @@ class TirageCog(Cog, name="Tirages"):
         if channel in self.tirages:
             await self.tirages[channel].accept(ctx, False)
         else:
-            await ctx.send(f"{ctx.author.mention} nie tout en block !")
+            await ctx.send(f"{ctx.author.mention} nie tout en bloc !")
 
     # ---------- Commandes du groupe draw ----------- #
 

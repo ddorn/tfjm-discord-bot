@@ -89,9 +89,14 @@ class TeamsCog(Cog, name="Teams"):
                 reason="Creation of a new team",
             )
             tournoi = get(guild.roles, name=team.tournoi)
+            participant = get(guild.roles, name=Role.PARTICIPANT)
 
             await ctx.author.add_roles(
-                team_role, captain_role, tournoi, reason="Creation of team " + trigram
+                team_role,
+                captain_role,
+                tournoi,
+                participant,
+                reason="Creation of team " + trigram,
             )
 
             await ctx.send(
@@ -131,10 +136,12 @@ class TeamsCog(Cog, name="Teams"):
         else:
             the_team = author_teams[0]
             tournoi = get(ctx.guild.roles, name=the_team[0].tournoi)
+            participant = get(ctx.guild.roles, name=Role.PARTICIPANT)
 
             await member.add_roles(
                 the_team[1],
                 tournoi,
+                participant,
                 reason=f"{ctx.author.name} l'a ajouté à son équipe",
             )
             await ctx.send(
