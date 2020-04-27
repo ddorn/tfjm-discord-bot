@@ -3,11 +3,7 @@ from pathlib import Path
 
 __all__ = [
     "TOKEN",
-    "ORGA_ROLE",
-    "CNO_ROLE",
-    "DEV_ROLE",
-    "BENEVOLE_ROLE",
-    "CAPTAIN_ROLE",
+    "Role",
     "PROBLEMS",
     "MAX_REFUSE",
     "ROUND_NAMES",
@@ -26,11 +22,15 @@ if TOKEN is None:
     quit(1)
 
 GUILD = "690934836696973404"
-ORGA_ROLE = "Orga"
-CNO_ROLE = "CNO"
-BENEVOLE_ROLE = "Bénévole"
-CAPTAIN_ROLE = "Capitaine"
-DEV_ROLE = "dev"
+
+
+class Role:
+    CNO = "CNO"
+    DEV = "dev"
+    ORGA = "Orga"
+    BENEVOLE = "Bénévole"
+    CAPTAIN = "Capitaine"
+
 
 with open("problems") as f:
     PROBLEMS = f.read().splitlines()

@@ -202,7 +202,7 @@ class Phase:
         self.tirage.teams = teams
 
     def captain_mention(self, ctx):
-        return get(ctx.guild.roles, name=CAPTAIN_ROLE).mention
+        return get(ctx.guild.roles, name=Role.CAPTAIN).mention
 
     async def dice(self, ctx: Context, author, dice):
         raise UnwantedCommand()
@@ -485,9 +485,9 @@ class PassageOrderPhase(OrderPhase):
         )
         await asyncio.sleep(0.5)
 
-        captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
         await ctx.send(
-            f"Les {captain.mention}s, vous pouvez lancer à nouveau un dé 100 (`!dice 100`)"
+            f"Les {self.captain_mention(ctx)}s, vous pouvez lancer "
+            f"à nouveau un dé 100 (`!dice 100`)"
         )
 
 
@@ -500,7 +500,6 @@ class TirageOrderPhase(OrderPhase):
         super().__init__(tirage, round, "des tirages", "tirage_order", False)
 
     async def start(self, ctx):
-        captain = get(ctx.guild.roles, name=CAPTAIN_ROLE)
 
         await asyncio.sleep(
             0.5
@@ -512,7 +511,7 @@ class TirageOrderPhase(OrderPhase):
         )
         await asyncio.sleep(0.5)
         await ctx.send(
-            f"Les {captain.mention}s, vous pouvez désormais lancer un dé 100 "
+            f"Les {self.captain_mention(ctx)}s, vous pouvez désormais lancer un dé 100 "
             "comme ceci `!dice 100`. "
             "L'ordre des tirages suivants sera l'ordre croissant des lancers. "
         )
@@ -606,7 +605,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
     )
-    @commands.has_role(ORGA_ROLE)
+    @commands.has_role(Role.ORGA)
     async def start(self, ctx: Context, *teams):
         """
         Commence un tirage avec 3 ou 4 équipes.
@@ -640,8 +639,8 @@ class TirageCog(Cog, name="Tirages"):
             r = lambda role_name: get(ctx.guild.roles, name=role_name)
             overwrites = {
                 ctx.guild.default_role: read,
-                r(CAPTAIN_ROLE): send,
-                r(BENEVOLE_ROLE): send,
+                r(Role.CAPTAIN): send,
+                r(Role.BENEVOLE): send,
             }
             await channel.edit(overwrites=overwrites)
 
@@ -661,7 +660,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(
         name="abort", help="Annule le tirage en cours.",
     )
-    @commands.has_role(ORGA_ROLE)
+    @commands.has_role(Role.ORGA)
     async def abort_draw_cmd(self, ctx):
         """
         Annule le tirage en cours.
@@ -676,7 +675,7 @@ class TirageCog(Cog, name="Tirages"):
             await ctx.send("Le tirage est annulé.")
 
     @draw_group.command(name="skip", aliases=["s"])
-    @commands.has_role(DEV_ROLE)
+    @commands.has_role(Role.DEV)
     async def draw_skip(self, ctx, *teams):
         """Skip certaines phases du tirage."""
         channel = ctx.channel.id
