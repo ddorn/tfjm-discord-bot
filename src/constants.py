@@ -5,6 +5,7 @@ __all__ = [
     "TOKEN",
     "ORGA_ROLE",
     "CNO_ROLE",
+    "DEV_ROLE",
     "BENEVOLE_ROLE",
     "CAPTAIN_ROLE",
     "PROBLEMS",
@@ -29,6 +30,7 @@ ORGA_ROLE = "Orga"
 CNO_ROLE = "CNO"
 BENEVOLE_ROLE = "Bénévole"
 CAPTAIN_ROLE = "Capitaine"
+DEV_ROLE = "dev"
 
 with open("problems") as f:
     PROBLEMS = f.read().splitlines()

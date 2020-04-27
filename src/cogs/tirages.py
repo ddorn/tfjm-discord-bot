@@ -676,7 +676,7 @@ class TirageCog(Cog, name="Tirages"):
             await ctx.send("Le tirage est annulé.")
 
     @draw_group.command(name="skip", aliases=["s"])
-    @commands.has_role(CNO_ROLE)
+    @commands.has_role(DEV_ROLE)
     async def draw_skip(self, ctx, *teams):
         """Skip certaines phases du tirage."""
         channel = ctx.channel.id

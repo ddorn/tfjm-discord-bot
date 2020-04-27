@@ -42,7 +42,7 @@ async def choose(ctx: Context, *args):
 
 
 @bot.command(name="interrupt")
-@commands.has_role(CNO_ROLE)
+@commands.has_role(DEV_ROLE)
 async def interrupt_cmd(ctx):
     """
     :warning: Ouvre une console là où un @dev m'a lancé. :warning:
