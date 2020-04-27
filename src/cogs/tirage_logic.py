@@ -222,7 +222,7 @@ class Phase:
     async def dice(self, ctx: Context, author, dice):
         raise UnwantedCommand()
 
-    async def choose_problem(self, ctx: Context, author, problem):
+    async def choose_problem(self, ctx: Context, author):
         raise UnwantedCommand()
 
     async def accept(self, ctx: Context, author, yes):
@@ -319,7 +319,7 @@ class TiragePhase(Phase):
     def available(self, problem):
         return all(team.accepted_problems[self.round] != problem for team in self.teams)
 
-    async def choose_problem(self, ctx: Context, author, problem):
+    async def choose_problem(self, ctx: Context, author):
         team = self.current_team
         if self.team_for(author) != team:
             raise UnwantedCommand(
@@ -336,6 +336,12 @@ class TiragePhase(Phase):
                 "Vous avez déjà tiré un problème, merci de l'accepter (`!yes`) "
                 "ou de le refuser (`!no)`."
             )
+
+        # Choose an *available* problem
+        problems = [
+            p for p in PROBLEMS if self.available(p) and not p in team.accepted_problems
+        ]
+        problem = random.choice(problems)
 
         await ctx.send(f"{team.mention} a tiré **{problem}** !")
         if not self.available(problem):
