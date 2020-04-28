@@ -43,38 +43,6 @@ async def choose(ctx: Context, *args):
     await ctx.send(f"J'ai choisi... **{choice}**")
 
 
-@bot.command(name="interrupt")
-@commands.has_role(Role.DEV)
-async def interrupt_cmd(ctx):
-    """
-    :warning: Ouvre une console là où un @dev m'a lancé. :warning:
-
-    A utiliser en dernier recours:
-     - le bot sera inactif pendant ce temps.
-     - toutes les commandes seront executées à sa reprise.
-    """
-
-    await ctx.send(
-        "J'ai été arrêté et une console interactive a été ouverte là où je tourne. "
-        "Toutes les commandes rateront tant que cette console est ouverte.\n"
-        "Soyez rapides, je déteste les opérations à coeur ouvert... :confounded:"
-    )
-
-    # Utility function
-
-    local = {
-        **globals(),
-        **locals(),
-        "pprint": pprint,
-        "_show": lambda o: print(*dir(o), sep="\n"),
-        "__name__": "__console__",
-        "__doc__": None,
-    }
-
-    code.interact(banner="Ne SURTOUT PAS FAIRE Ctrl+C !\n(TFJM² debugger)", local=local)
-    await ctx.send("Tout va mieux !")
-
-
 @bot.event
 async def on_command_error(ctx: Context, error, *args, **kwargs):
     if isinstance(error, commands.CommandInvokeError):
@@ -90,7 +58,11 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
             await ctx.author.send("Raison: " + error.original.msg)
             return
         else:
-            msg = str(error.original) or str(error)
+            msg = (
+                error.original.__class__.__name__
+                + ": "
+                + (str(error.original) or str(error))
+            )
             traceback.print_tb(error.original.__traceback__, file=sys.stderr)
     elif isinstance(error, commands.CommandNotFound):
         # Here we just take adventage that the error is formatted this way:
@@ -98,7 +70,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
         name = str(error).partition('"')[2].rpartition('"')[0]
         msg = f"La commande {name} n'éxiste pas. Pour un liste des commandes, envoie `!help`."
     else:
-        msg = str(error)
+        msg = repr(error)
 
     print(repr(error), dir(error), file=sys.stderr)
     await ctx.send(msg)
@@ -106,6 +78,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
 
 bot.load_extension("src.cogs.tirages")
 bot.load_extension("src.cogs.teams")
+bot.load_extension("src.cogs.dev")
 
 
 if __name__ == "__main__":

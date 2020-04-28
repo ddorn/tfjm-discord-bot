@@ -58,7 +58,7 @@ class TirageCog(Cog, name="Tirages"):
             await ctx.send(f"Le problème tiré est... **{problem}**")
 
     @commands.command(
-        name="oui", aliases=["accept", "yes", "o", "accepte", "ouiiiiiii"],
+        name="oui", aliases=["accept", "yes", "o", "oh-yeaaah", "accepte", "ouiiiiiii"],
     )
     async def accept_cmd(self, ctx):
         """
