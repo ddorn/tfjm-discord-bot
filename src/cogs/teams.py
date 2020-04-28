@@ -104,6 +104,20 @@ class TeamsCog(Cog, name="Teams"):
                 f"est {ctx.author.mention}"
             )
 
+            diego = get(ctx.guild.members, display_name=DIEGO, top_role__name=Role.CNO)
+            await ctx.author.send(
+                f"Salut Capitaine !\n"
+                "On va être amené à faire de nombreuses choses ensemble "
+                "ces prochains jours, donc n'hésite pas à abuser de `!help`. "
+                "Tu peux l'utiliser ici mais malheureusement tu ne pourra pas voir "
+                "les commandes qui sont réservés aux capitaines. \n"
+                "Une commande que tu peux avoir envie d'utiliser c'est "
+                "`!team channel un-super-nom` pour créer une channel réservée à "
+                "ton équipe. \n\n"
+                f"Si tu as des suggestions pour que le bot permette à chacun d'avoir "
+                f"une meilleure expérience ici, envoie un petit message à {diego.mention} ;)"
+            )
+
     @team.command(name="add")
     @commands.has_role(Role.CAPTAIN)
     async def team_add(self, ctx, member: discord.Member):

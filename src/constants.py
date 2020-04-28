@@ -10,6 +10,7 @@ __all__ = [
     "TIRAGES_FILE",
     "TEAMS_FILE",
     "TEAMS_CHANNEL_CATEGORY",
+    "DIEGO",
 ]
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
@@ -24,6 +25,7 @@ if TOKEN is None:
     quit(1)
 
 GUILD = "690934836696973404"
+DIEGO = "Diego"  # Mon display name
 
 
 class Role:
