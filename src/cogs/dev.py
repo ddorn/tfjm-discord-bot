@@ -1,8 +1,11 @@
 import code
 from pprint import pprint
 
-from discord.ext.commands import command, has_role, Bot
+import discord
+from discord import Colour, TextChannel, PermissionOverwrite
+from discord.ext.commands import command, has_role, Bot, has_any_role
 from discord.ext.commands import Cog
+from discord.utils import get
 
 from src.constants import *
 
@@ -47,6 +50,12 @@ class DevCog(Cog, name="Dev tools"):
     @command(name="reload", aliases=["r"])
     @has_role(Role.DEV)
     async def reload_cmd(self, ctx, name):
+        """
+        (dev) Recharge une catégorie de commande.
+
+        A utiliser quand le code change. Arguments
+        possibles: `teams`, `tirages`, `dev`.
+        """
 
         MAP = {"d": "dev", "ts": "teams", "t": "tirages"}
         name = MAP.get(name, name)
@@ -61,6 +70,57 @@ class DevCog(Cog, name="Dev tools"):
             raise
         else:
             await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
+
+    @command(name="setup-roles")
+    async def setup_roles(self, ctx):
+        """
+        (dev) Temporary command to setup the server.
+        """
+
+        return
+
+        guild: discord.Guild = ctx.guild
+        nothing = PermissionOverwrite(read_messages=False)
+        see = PermissionOverwrite(read_messages=True)
+
+        return
+
+        aide: TextChannel = get(guild.text_channels, name="aide")
+        for t in TOURNOIS:
+            orga = get(guild.roles, name=f"Orga {t}")
+            jury = get(guild.roles, name=f"Jury {t}")
+            await aide.set_permissions(orga, overwrite=see)
+            await aide.set_permissions(jury, overwrite=see)
+
+        return
+
+        tournois = {
+            tournoi: get(guild.categories, name=tournoi) for tournoi in TOURNOIS
+        }
+
+        for ch in guild.text_channels:
+            print(repr(ch.category))
+
+        for tournoi, cat in tournois.items():
+            if tournoi == "Lyon":
+                continue
+
+            jury_channel: TextChannel = get(
+                guild.text_channels, category=cat, name="cro"
+            )
+            await jury_channel.delete()
+            # jury = get(guild.roles, name=f"Jury {tournoi}")
+            orga = get(guild.roles, name=f"Orga {tournoi}")
+            ov = {
+                guild.default_role: nothing,
+                # jury: see,
+                orga: see,
+            }
+            await guild.create_text_channel(
+                f"cro-{tournoi}", category=cat, overwrites=ov
+            )
+
+            await ctx.send(str(jury_channel))
 
 
 def setup(bot: Bot):

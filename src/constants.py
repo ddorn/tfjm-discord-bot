@@ -11,6 +11,7 @@ __all__ = [
     "TEAMS_FILE",
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
+    "TOURNOIS",
 ]
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
@@ -27,11 +28,24 @@ if TOKEN is None:
 GUILD = "690934836696973404"
 DIEGO = "Diego"  # Mon display name
 
+TOURNOIS = [
+    "Lille",
+    "Lyon",
+    "Paris-Saclay",
+    "Avignon",
+    "Paris-Est",
+    "Tours",
+    "Bordeaux",
+    "Nancy",
+    "Rennes",
+]
+
 
 class Role:
     CNO = "CNO"
     DEV = "dev"
     ORGA = "Orga"
+    ORGAS = tuple(f"Orga {t}" for t in TOURNOIS)
     BENEVOLE = "Bénévole"
     CAPTAIN = "Capitaine"
     PARTICIPANT = "Participant"

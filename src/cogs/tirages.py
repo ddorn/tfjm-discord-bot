@@ -1,8 +1,5 @@
 #!/bin/python
 
-
-#!/bin/python
-
 import asyncio
 import random
 from collections import defaultdict, namedtuple
@@ -667,7 +664,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
     )
-    @commands.has_role(Role.ORGA)
+    @commands.has_any_role(*Role.ORGAS)
     async def start(self, ctx: Context, *teams: discord.Role):
         """
         (orga) Commence un tirage avec 3 ou 4 équipes.
@@ -720,7 +717,7 @@ class TirageCog(Cog, name="Tirages"):
         await self.tirages[channel_id].phase.start(ctx)
 
     @draw_group.command(name="abort")
-    @commands.has_role(Role.ORGA)
+    @commands.has_any_role(*Role.ORGAS)
     async def abort_draw_cmd(self, ctx):
         """
         (orga) Annule le tirage en cours.
