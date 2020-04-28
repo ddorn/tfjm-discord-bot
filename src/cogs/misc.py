@@ -53,20 +53,8 @@ class MiscCog(Cog, name="Divers"):
 
         if not args:
             await self.send_bot_help(ctx)
-            return
         else:
-            pass
-
-        embed = discord.Embed(
-            title="Help for `!draw`",
-            description="Groupe qui continent des commande pour les tirages",
-            color=0xFFA500,
-        )
-        # embed.set_author(name="*oooo*")
-        embed.add_field(name="zoulou", value="okokok", inline=True)
-        embed.add_field(name="lklk", value="mnmn", inline=True)
-        embed.set_footer(text="thankss!")
-        await ctx.send(embed=embed)
+            await self.send_command_help(ctx, args)
 
     async def send_bot_help(self, ctx: Context):
         embed = discord.Embed(
@@ -103,6 +91,34 @@ class MiscCog(Cog, name="Divers"):
             text = "\n".join(lines)
             embed.add_field(name=cat_name, value=text, inline=False)
 
+        embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
+
+        await ctx.send(embed=embed)
+
+    async def send_command_help(self, ctx, args):
+        name = " ".join(args)
+        comm: Command = self.bot.get_command(name)
+        if comm is None:
+            await ctx.send(
+                f"La commande `!{name}` n'existe pas. "
+                f"Utilise `!help` pour une liste des commandes."
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"Aide pour la commande `!{comm.qualified_name}`",
+            description=comm.help,
+            color=0xFFA500,
+        )
+
+        # embed.set_author(name="*oooo*")
+        if comm.aliases:
+            aliases = ", ".join(f"`{a}`" for a in comm.aliases)
+            embed.add_field(name="Alias", value=aliases, inline=True)
+        if comm.signature:
+            embed.add_field(
+                name="Usage", value=f"`!{comm.qualified_name} {comm.signature}`"
+            )
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
         await ctx.send(embed=embed)
