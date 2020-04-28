@@ -44,9 +44,12 @@ class DevCog(Cog, name="Dev tools"):
         )
         await ctx.send("Tout va mieux !")
 
-    @command(name="reload")
+    @command(name="reload", aliases=["r"])
     @has_role(Role.DEV)
     async def reload_cmd(self, ctx, name):
+
+        MAP = {"d": "dev", "ts": "teams", "t": "tirages"}
+        name = MAP.get(name, name)
 
         if name in ("dev", "teams", "tirages"):
             name = f"src.cogs.{name}"
