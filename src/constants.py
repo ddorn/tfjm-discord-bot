@@ -9,6 +9,7 @@ __all__ = [
     "ROUND_NAMES",
     "TIRAGES_FILE",
     "TEAMS_FILE",
+    "JOKES_FILE",
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
     "TOURNOIS",
@@ -58,6 +59,7 @@ ROUND_NAMES = ["premier tour", "deuxième tour"]
 TOP_LEVEL_DIR = Path(__file__).parent.parent
 TIRAGES_FILE = TOP_LEVEL_DIR / "data" / "tirages.yaml"
 TEAMS_FILE = TOP_LEVEL_DIR / "data" / "teams"
+JOKES_FILE = TOP_LEVEL_DIR / "data" / "jokes"
 
 with open(TOP_LEVEL_DIR / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()

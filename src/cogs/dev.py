@@ -60,7 +60,7 @@ class DevCog(Cog, name="Dev tools"):
         MAP = {"d": "dev", "ts": "teams", "t": "tirages"}
         name = MAP.get(name, name)
 
-        if name in ("dev", "teams", "tirages"):
+        if not "." in name:
             name = f"src.cogs.{name}"
 
         try:

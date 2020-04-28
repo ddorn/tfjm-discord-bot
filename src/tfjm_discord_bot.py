@@ -26,23 +26,6 @@ async def on_ready():
     print(f"{bot.user} has connected to Discord!")
 
 
-@bot.command(
-    name="choose",
-    usage='choix1 choix2 "choix 3"...',
-    aliases=["choice", "choix", "ch"],
-)
-async def choose(ctx: Context, *args):
-    """
-    Choisit une option parmi tous les arguments.
-
-    Pour les options qui contiennent une espace,
-    il suffit de mettre des guillemets (`"`) autour.
-    """
-
-    choice = random.choice(args)
-    await ctx.send(f"J'ai choisi... **{choice}**")
-
-
 @bot.event
 async def on_command_error(ctx: Context, error, *args, **kwargs):
     if isinstance(error, commands.CommandInvokeError):
@@ -81,6 +64,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
 bot.load_extension("src.cogs.tirages")
 bot.load_extension("src.cogs.teams")
 bot.load_extension("src.cogs.dev")
+bot.load_extension("src.cogs.misc")
 
 
 if __name__ == "__main__":
