@@ -199,7 +199,7 @@ class TeamsCog(Cog, name="Teams"):
 
     @team.command(name="voice", usage="Nom du salon")
     @commands.has_role(Role.CAPTAIN)
-    async def team_channel(self, ctx, *channel_name):
+    async def team_voice(self, ctx, *channel_name):
         """
         (cap) Crée une channel vocale privée pour l'équipe
 
