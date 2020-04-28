@@ -63,4 +63,4 @@ JOKES_FILE = TOP_LEVEL_DIR / "data" / "jokes"
 
 with open(TOP_LEVEL_DIR / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()
-MAX_REFUSE = len(PROBLEMS) - 5
+MAX_REFUSE = len(PROBLEMS) - 4  # -5 usually but not in 2020 because of covid-19

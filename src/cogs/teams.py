@@ -197,6 +197,41 @@ class TeamsCog(Cog, name="Teams"):
             reason=f"{ctx.author.name} à demandé une channel pour son équipe.",
         )
 
+    @team.command(name="voice", usage="Nom du salon")
+    @commands.has_role(Role.CAPTAIN)
+    async def team_channel(self, ctx, *channel_name):
+        """
+        (cap) Crée une channel vocale privée pour l'équipe
+
+        Crée un endroit de discussion privé seulement pour l'équipe
+        personne d'autre n'y aura accès.
+
+        Exemple:
+            `!team voice un-nom-sympa`
+        """
+
+        if not channel_name:
+            await ctx.send(
+                "Tu dois mettre un nom d'équipe, par exemple "
+                "`!team channel un-super-nom`"
+            )
+            return
+
+        channel_name = " ".join(channel_name)
+
+        guild: discord.Guild = ctx.guild
+        team_role = self.teams_for(ctx.author)[0][1]
+        team_channel_category = get(guild.categories, name=TEAMS_CHANNEL_CATEGORY)
+        await guild.create_voice_channel(
+            channel_name,
+            overwrites={
+                guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                team_role: discord.PermissionOverwrite(read_messages=True),
+            },
+            category=team_channel_category,
+            reason=f"{ctx.author.name} à demandé une channel vocale pour son équipe.",
+        )
+
 
 def setup(bot: Bot):
     bot.add_cog(TeamsCog())
