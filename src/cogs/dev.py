@@ -72,6 +72,7 @@ class DevCog(Cog, name="Dev tools"):
             await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
 
     @command(name="setup-roles")
+    @has_role(Role.DEV)
     async def setup_roles(self, ctx):
         """
         (dev) Temporary command to setup the server.

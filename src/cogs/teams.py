@@ -159,12 +159,12 @@ class TeamsCog(Cog, name="Teams"):
                 reason=f"{ctx.author.name} l'a ajouté à son équipe",
             )
             await ctx.send(
-                f"{member.mention} à été ajouté dans l'équipe {the_team[1].mention}"
+                f"{member.mention} a été ajouté dans l'équipe {the_team[1].mention}"
             )
 
-    @team.command(name="channel", ignore_extra=False)
+    @team.command(name="channel")
     @commands.has_role(Role.CAPTAIN)
-    async def team_channel(self, ctx, channel_name):
+    async def team_channel(self, ctx, *channel_name):
         """
         (cap) Crée une channel privée pour l'équipe
 
@@ -174,6 +174,15 @@ class TeamsCog(Cog, name="Teams"):
         Exemple:
             `!team channel un-nom-sympa`
         """
+
+        if not channel_name:
+            await ctx.send(
+                "Tu dois mettre un nom d'équipe, par exemple "
+                "`!team channel un-super-nom`"
+            )
+            return
+
+        channel_name = " ".join(channel_name)
 
         guild: discord.Guild = ctx.guild
         team_role = self.teams_for(ctx.author)[0][1]

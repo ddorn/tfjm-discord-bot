@@ -69,6 +69,8 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
         # 'Command "NAME" is not found'
         name = str(error).partition('"')[2].rpartition('"')[0]
         msg = f"La commande {name} n'éxiste pas. Pour un liste des commandes, envoie `!help`."
+    elif isinstance(error, commands.MissingRole):
+        msg = f"Il te faut le role de {error.missing_role} pour utiliser cette commande"
     else:
         msg = repr(error)
 
