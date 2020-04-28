@@ -57,7 +57,7 @@ class DevCog(Cog, name="Dev tools"):
         possibles: `teams`, `tirages`, `dev`.
         """
 
-        MAP = {"d": "dev", "ts": "teams", "t": "tirages"}
+        MAP = {"d": "dev", "ts": "teams", "t": "tirages", "m": "misc"}
         name = MAP.get(name, name)
 
         if not "." in name:
