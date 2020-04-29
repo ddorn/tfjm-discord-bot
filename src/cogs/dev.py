@@ -63,7 +63,7 @@ class DevCog(Cog, name="Dev tools"):
     @has_role(Role.DEV)
     async def reload_cmd(self, ctx, name):
         """
-        (dev) Recharge une catégorie de commande.
+        (dev) Recharge une catégorie de commandes.
 
         A utiliser quand le code change. Arguments
         possibles: `teams`, `tirages`, `dev`.
@@ -98,11 +98,11 @@ class DevCog(Cog, name="Dev tools"):
             await ctx.send(f":tada: L'extension **{name}** a bien été ajoutée !")
 
     # noinspection PyUnreachableCode
-    @command(name="setup-roles")
+    @command(name="setup", hidden=True)
     @has_role(Role.DEV)
     async def setup_roles(self, ctx):
         """
-        (dev) Temporary command to setup the server.
+        (dev) Commande temporaire pour setup le serveur.
         """
 
         return

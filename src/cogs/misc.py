@@ -53,6 +53,7 @@ class MiscCog(Cog, name="Divers"):
 
     @command(name="status")
     async def status_cmd(self, ctx: Context):
+        """Affiche des informations à propos du serveur."""
         guild: Guild = ctx.guild
         embed = discord.Embed(title="État du serveur", color=EMBED_COLOR)
         benevoles = [g for g in guild.members if has_role(g, Role.BENEVOLE)]
@@ -80,7 +81,7 @@ class MiscCog(Cog, name="Divers"):
 
     @command(name="help", aliases=["h"])
     async def help_cmd(self, ctx: Context, *args):
-        """Affiche ce message"""
+        """Affiche des détails à propos d'une commande."""
 
         if not args:
             await self.send_bot_help(ctx)
