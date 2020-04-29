@@ -5,7 +5,7 @@ import random
 from collections import defaultdict, namedtuple
 from io import StringIO
 from pprint import pprint
-from typing import Type
+from typing import Type, List
 
 import discord
 import yaml
@@ -138,8 +138,14 @@ class Tirage(yaml.YAMLObject):
             yaml.dump_all(tl, f)
 
         await ctx.send(
-            f"A tout moment, ce rapport peut être envoyé avec `!draw show {len(tl) - 1}`"
+            f"A tout moment, ce rapport peut "
+            f"être envoyé avec `!draw show {len(tl) - 1}`"
         )
+
+        from src.tfjm_discord_bot import tirages
+
+        if self.channel in tirages:
+            del tirages[self.channel]
 
     def records(self, round):
         """Get the strings needed for show the tirage in a list of Records"""
@@ -725,9 +731,15 @@ class TirageCog(Cog, name="Tirages"):
         plus de choses qu'on imagine (mais moins qu'on voudrait).
         """
         channel_id = ctx.channel.id
+
         if channel_id in self.tirages:
+            print(self.tirages, channel_id)
+            print(self.tirages[channel_id])
+
             await self.tirages[channel_id].end(ctx)
             await ctx.send("Le tirage est annulé.")
+        else:
+            await ctx.send("Il n'y a pas de tirage en cours.")
 
     @draw_group.command(name="skip", aliases=["s"])
     @commands.has_role(Role.DEV)
@@ -748,6 +760,15 @@ class TirageCog(Cog, name="Tirages"):
         await tirage.phase.start(ctx)
         await tirage.update_phase(ctx)
 
+    def get_tirages(self) -> List[Tirage]:
+        if not TIRAGES_FILE.exists():
+            return []
+
+        with open(TIRAGES_FILE) as f:
+            tirages = list(yaml.load_all(f))
+
+        return tirages
+
     @draw_group.command(name="show")
     async def show_cmd(self, ctx: Context, tirage_id: str = "all"):
         """
@@ -758,12 +779,10 @@ class TirageCog(Cog, name="Tirages"):
             `!draw show 42` - Affiche le tirage n°42
         """
 
-        if not TIRAGES_FILE.exists():
-            await ctx.send("Il n'y a pas encore eu de tirages.")
-            return
+        tirages = self.get_tirages()
 
-        with open(TIRAGES_FILE) as f:
-            tirages = list(yaml.load_all(f))
+        if not tirages:
+            return await ctx.send("Il n'y a pas encore eu de tirages.")
 
         if tirage_id.lower() == "all":
             await ctx.send(
@@ -792,6 +811,28 @@ class TirageCog(Cog, name="Tirages"):
                     await tirage.show_tex(ctx)
                 else:
                     await tirage.show(ctx)
+
+    @draw_group.command(name="dump")
+    @commands.has_role(Role.DEV)
+    async def dump_cmd(self, ctx, tirage_id: int, round=0):
+        tirages = self.get_tirages()
+
+        try:
+            n = int(tirage_id)
+            if n < 0:
+                raise ValueError
+            tirage = tirages[n]
+        except (ValueError, IndexError):
+            await ctx.send(
+                f"`{tirage_id}` n'est pas un identifiant valide. "
+                f"Les identifiants valides sont visibles avec `!draw show all`"
+            )
+        else:
+            msg = ";".join(
+                x for t in tirage.teams for x in (t.name, t.accepted_problems[round][0])
+            )
+
+            await ctx.send(msg)
 
 
 def setup(bot):
