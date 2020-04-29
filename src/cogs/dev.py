@@ -61,7 +61,7 @@ class DevCog(Cog, name="Dev tools"):
         name="reload", aliases=["r"], usage=f"[{'|'.join(COGS_SHORTCUTS.values())}]"
     )
     @has_role(Role.DEV)
-    async def reload_cmd(self, ctx, name):
+    async def reload_cmd(self, ctx, name=None):
         """
         (dev) Recharge une catégorie de commandes.
 
@@ -69,15 +69,19 @@ class DevCog(Cog, name="Dev tools"):
         possibles: `teams`, `tirages`, `dev`.
         """
 
-        name = self.full_cog_name(name)
+        names = [name] if name else list(COGS_SHORTCUTS.values())
 
-        try:
-            self.bot.reload_extension(name)
-        except:
-            await ctx.send(f":grimacing: **{name}** n'a pas pu être rechargée.")
-            raise
-        else:
-            await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
+        for name in names:
+
+            name = self.full_cog_name(name)
+
+            try:
+                self.bot.reload_extension(name)
+            except:
+                await ctx.send(f":grimacing: **{name}** n'a pas pu être rechargée.")
+                raise
+            else:
+                await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
 
     @command(name="load", aliases=["l"])
     @has_role(Role.DEV)
