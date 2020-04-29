@@ -1,23 +1,14 @@
 #!/bin/python
-import code
-import random
-import sys
-import traceback
-from pprint import pprint
 
-import discord
 from discord.ext import commands
-from discord.ext.commands import Context
 
-from src.cogs import TfjmHelpCommand
 from src.constants import *
-from src.errors import TfjmError, UnwantedCommand
 
 # We allow "! " to catch people that put a space in their commands.
 # It must be in first otherwise "!" always match first and the space is not recognised
-bot = commands.Bot(("! ", "!"), help_command=TfjmHelpCommand())
+bot = commands.Bot(("! ", "!"))
 
-# Variable globale qui contient les tirages.
+# Global variable to hold the tirages.
 # We *want* it to be global so we can reload the tirages cog without
 # removing all the running tirages
 tirages = {}
