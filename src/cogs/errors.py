@@ -81,7 +81,7 @@ class ErrorsCog(Cog):
         # Here we just take advantage that the error is formatted this way:
         # 'Command "NAME" is not found'
         name = str(error).partition('"')[2].rpartition('"')[0]
-        return f"La commande {name} n'éxiste pas. Pour une liste des commandes, envoie `!help`."
+        return f"La commande {name} n'existe pas. Pour une liste des commandes, envoie `!help`."
 
     @handles(MissingRole)
     def on_missing_role(self, ctx, error):

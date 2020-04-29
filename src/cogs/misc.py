@@ -6,7 +6,7 @@ from pprint import pprint
 from time import time
 
 import discord
-from discord import Guild
+from discord import Guild, Emoji
 from discord.ext import commands
 from discord.ext.commands import (
     Cog,
@@ -51,7 +51,10 @@ class MiscCog(Cog, name="Divers"):
             jokes = f.read().split("\n\n\n")
 
         msg = random.choice(jokes)
-        await ctx.send(msg)
+        message: discord.Message = await ctx.send(msg)
+
+        await message.add_reaction("😂")
+        await message.add_reaction("😭")
 
     @command(name="status")
     @commands.has_role(Role.CNO)
