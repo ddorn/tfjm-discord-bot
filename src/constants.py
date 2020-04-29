@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from time import time
 
 __all__ = [
     "TOKEN",
@@ -7,17 +8,15 @@ __all__ = [
     "PROBLEMS",
     "MAX_REFUSE",
     "ROUND_NAMES",
-    "TIRAGES_FILE",
-    "TEAMS_FILE",
-    "JOKES_FILE",
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
     "TOURNOIS",
     "EMBED_COLOR",
     "START_TIME",
+    "File",
+    "Emoji",
 ]
 
-from time import time
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
 
@@ -30,9 +29,12 @@ if TOKEN is None:
     print()
     quit(1)
 
+START_TIME = time()
 GUILD = "690934836696973404"
 DIEGO = "Diego"  # Mon display name
-
+TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
+EMBED_COLOR = 0xFFA500
+ROUND_NAMES = ["premier tour", "deuxième tour"]
 TOURNOIS = [
     "Lille",
     "Lyon",
@@ -56,18 +58,18 @@ class Role:
     PARTICIPANT = "Participant"
 
 
-TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
+class Emoji:
+    JOY = "😂"
+    SOB = "😭"
 
-ROUND_NAMES = ["premier tour", "deuxième tour"]
 
-TOP_LEVEL_DIR = Path(__file__).parent.parent
-TIRAGES_FILE = TOP_LEVEL_DIR / "data" / "tirages.yaml"
-TEAMS_FILE = TOP_LEVEL_DIR / "data" / "teams"
-JOKES_FILE = TOP_LEVEL_DIR / "data" / "jokes"
+class File:
+    TOP_LEVEL = Path(__file__).parent.parent
+    TIRAGES = TOP_LEVEL / "data" / "tirages.yaml"
+    TEAMS = TOP_LEVEL / "data" / "teams"
+    JOKES = TOP_LEVEL / "data" / "jokes"
 
-with open(TOP_LEVEL_DIR / "data" / "problems") as f:
+
+with open(File.TOP_LEVEL / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()
 MAX_REFUSE = len(PROBLEMS) - 4  # -5 usually but not in 2020 because of covid-19
-
-EMBED_COLOR = 0xFFA500
-START_TIME = time()

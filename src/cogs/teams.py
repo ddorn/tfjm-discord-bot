@@ -18,7 +18,7 @@ class TeamsCog(Cog, name="Teams"):
         self.teams = self.load_teams()
 
     def load_teams(self):
-        with open(TEAMS_FILE) as f:
+        with open(File.TEAMS) as f:
             # first line is header
             lines = f.read().splitlines()[1:]
         teams = [

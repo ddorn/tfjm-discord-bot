@@ -1,12 +1,11 @@
+import datetime
 import itertools
 import random
-import datetime
 from operator import attrgetter
-from pprint import pprint
 from time import time
 
 import discord
-from discord import Guild, Emoji
+from discord import Guild
 from discord.ext import commands
 from discord.ext.commands import (
     Cog,
@@ -19,6 +18,7 @@ from discord.ext.commands import (
 )
 
 from src.constants import *
+from src.constants import Emoji
 from src.utils import has_role
 
 
@@ -47,14 +47,14 @@ class MiscCog(Cog, name="Divers"):
     @command(name="joke", aliases=["blague"], hidden=True)
     async def joke_cmd(self, ctx):
         await ctx.message.delete()
-        with open(JOKES_FILE) as f:
+        with open(File.JOKES) as f:
             jokes = f.read().split("\n\n\n")
 
         msg = random.choice(jokes)
         message: discord.Message = await ctx.send(msg)
 
-        await message.add_reaction("😂")
-        await message.add_reaction("😭")
+        await message.add_reaction(Emoji.JOY)
+        await message.add_reaction(Emoji.SOB)
 
     @command(name="status")
     @commands.has_role(Role.CNO)

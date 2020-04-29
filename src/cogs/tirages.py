@@ -140,15 +140,15 @@ class Tirage(yaml.YAMLObject):
             await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
 
         tl = {}
-        if TIRAGES_FILE.exists():
-            with open(TIRAGES_FILE) as f:
+        if File.TIRAGES.exists():
+            with open(File.TIRAGES) as f:
                 tl = yaml.load(f)
         else:
-            TIRAGES_FILE.touch()
+            File.TIRAGES.touch()
 
         key = max(0, *tl.keys()) + 1
         tl[key] = self
-        with open(TIRAGES_FILE, "w") as f:
+        with open(File.TIRAGES, "w") as f:
             yaml.dump(tl, f)
 
         await ctx.send(
@@ -785,10 +785,10 @@ class TirageCog(Cog, name="Tirages"):
         await tirage.update_phase(ctx)
 
     def get_tirages(self) -> Dict[int, Tirage]:
-        if not TIRAGES_FILE.exists():
+        if not File.TIRAGES.exists():
             return {}
 
-        with open(TIRAGES_FILE) as f:
+        with open(File.TIRAGES) as f:
             tirages = yaml.load(f)
 
         return tirages
