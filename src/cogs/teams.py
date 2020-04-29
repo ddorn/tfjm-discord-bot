@@ -216,7 +216,7 @@ class TeamsCog(Cog, name="Teams"):
         if not channel_name:
             await ctx.send(
                 "Tu dois mettre un nom d'équipe, par exemple "
-                "`!team channel un-super-nom`"
+                "`!team voice un-super-nom`"
             )
             return
 
@@ -232,7 +232,7 @@ class TeamsCog(Cog, name="Teams"):
                 team_role: discord.PermissionOverwrite(read_messages=True),
             },
             category=team_channel_category,
-            reason=f"{ctx.author.name} à demandé une channel vocale pour son équipe.",
+            reason=f"{ctx.author.name} à demandé un salon vocale pour son équipe.",
         )
 
 
