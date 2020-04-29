@@ -5,7 +5,7 @@ import random
 from collections import defaultdict, namedtuple
 from io import StringIO
 from pprint import pprint
-from typing import Type, List
+from typing import Type, List, Dict
 
 import discord
 import yaml
@@ -126,20 +126,20 @@ class Tirage(yaml.YAMLObject):
             send = discord.PermissionOverwrite()  # reset
             await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
 
-        tl = []
+        tl = {}
         if TIRAGES_FILE.exists():
             with open(TIRAGES_FILE) as f:
-                tl = list(yaml.load_all(f))
+                tl = yaml.load(f)
         else:
             TIRAGES_FILE.touch()
 
-        tl.append(self)
+        key = max(0, *tl.keys()) + 1
+        tl[key] = self
         with open(TIRAGES_FILE, "w") as f:
-            yaml.dump_all(tl, f)
+            yaml.dump(tl, f)
 
         await ctx.send(
-            f"A tout moment, ce rapport peut "
-            f"être envoyé avec `!draw show {len(tl) - 1}`"
+            f"A tout moment, ce rapport peut " f"être envoyé avec `!draw show {key}`"
         )
 
         from src.tfjm_discord_bot import tirages
@@ -760,12 +760,12 @@ class TirageCog(Cog, name="Tirages"):
         await tirage.phase.start(ctx)
         await tirage.update_phase(ctx)
 
-    def get_tirages(self) -> List[Tirage]:
+    def get_tirages(self) -> Dict[int, Tirage]:
         if not TIRAGES_FILE.exists():
-            return []
+            return {}
 
         with open(TIRAGES_FILE) as f:
-            tirages = list(yaml.load_all(f))
+            tirages = yaml.load(f)
 
         return tirages
 
@@ -791,8 +791,8 @@ class TirageCog(Cog, name="Tirages"):
                 "Vous pouvez en consulter un en particulier avec `!draw show ID`."
             )
             msg = "\n".join(
-                f"`{i}`: {', '.join(team.name for team in tirage.teams)}"
-                for i, tirage in enumerate(tirages)
+                f"`{key}`: {', '.join(team.name for team in tirage.teams)}"
+                for key, tirage in tirages.items()
             )
             await ctx.send(msg)
         else:
@@ -801,16 +801,13 @@ class TirageCog(Cog, name="Tirages"):
                 if n < 0:
                     raise ValueError
                 tirage = tirages[n]
-            except (ValueError, IndexError):
+            except (ValueError, KeyError):
                 await ctx.send(
                     f"`{tirage_id}` n'est pas un identifiant valide. "
                     f"Les identifiants valides sont visibles avec `!draw show all`"
                 )
             else:
-                if False:
-                    await tirage.show_tex(ctx)
-                else:
-                    await tirage.show(ctx)
+                await tirage.show(ctx)
 
     @draw_group.command(name="dump")
     @commands.has_role(Role.DEV)
@@ -822,7 +819,7 @@ class TirageCog(Cog, name="Tirages"):
             if n < 0:
                 raise ValueError
             tirage = tirages[n]
-        except (ValueError, IndexError):
+        except (ValueError, KeyError):
             await ctx.send(
                 f"`{tirage_id}` n'est pas un identifiant valide. "
                 f"Les identifiants valides sont visibles avec `!draw show all`"
@@ -833,6 +830,11 @@ class TirageCog(Cog, name="Tirages"):
             )
 
             await ctx.send(msg)
+
+    @draw_group.command()
+    @commands.has_role(Role.DEV)
+    async def debug(self, ctx, id: int):
+        pass
 
 
 def setup(bot):
