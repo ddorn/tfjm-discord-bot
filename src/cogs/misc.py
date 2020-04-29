@@ -1,10 +1,11 @@
 import itertools
 import random
-import sys
-import traceback
+import datetime
 from operator import attrgetter
+from time import time
 
 import discord
+from discord import Guild
 from discord.ext.commands import (
     Cog,
     command,
@@ -13,13 +14,10 @@ from discord.ext.commands import (
     Command,
     CommandError,
     Group,
-    CommandInvokeError,
-    CommandNotFound,
-    MissingRole,
 )
 
 from src.constants import *
-from src.errors import UnwantedCommand
+from src.utils import has_role
 
 
 class MiscCog(Cog, name="Divers"):
@@ -52,6 +50,31 @@ class MiscCog(Cog, name="Divers"):
 
         msg = random.choice(jokes)
         await ctx.send(msg)
+
+    @command(name="status")
+    async def status_cmd(self, ctx: Context):
+        guild: Guild = ctx.guild
+        embed = discord.Embed(title="État du serveur", color=EMBED_COLOR)
+        benevoles = [g for g in guild.members if has_role(g, Role.BENEVOLE)]
+        participants = [g for g in guild.members if has_role(g, Role.PARTICIPANT)]
+        no_role = [g for g in guild.members if g.top_role == guild.default_role]
+        uptime = datetime.timedelta(seconds=round(time() - START_TIME))
+
+        infos = {
+            "Bénévoles": len(benevoles),
+            "Participants": len(participants),
+            "Sans rôle": len(no_role),
+            "Total": len(guild.members),
+            "Bot uptime": uptime,
+        }
+
+        width = max(map(len, infos))
+        txt = "\n".join(
+            f"`{key.rjust(width)}`: {value}" for key, value in infos.items()
+        )
+        embed.add_field(name="Stats", value=txt)
+
+        await ctx.send(embed=embed)
 
     # ----------------- Help ---------------- #
 

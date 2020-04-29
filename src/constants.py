@@ -13,7 +13,11 @@ __all__ = [
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
     "TOURNOIS",
+    "EMBED_COLOR",
+    "START_TIME",
 ]
+
+from time import time
 
 TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
 
@@ -64,3 +68,6 @@ JOKES_FILE = TOP_LEVEL_DIR / "data" / "jokes"
 with open(TOP_LEVEL_DIR / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()
 MAX_REFUSE = len(PROBLEMS) - 4  # -5 usually but not in 2020 because of covid-19
+
+EMBED_COLOR = 0xFFA500
+START_TIME = time()
