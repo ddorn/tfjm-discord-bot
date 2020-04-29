@@ -4,4 +4,3 @@ of the TFJM² bot.
 """
 
 from .tirages import TirageCog
-from .help import TfjmHelpCommand

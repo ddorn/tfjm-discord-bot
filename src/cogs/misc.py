@@ -2,10 +2,12 @@ import itertools
 import random
 import datetime
 from operator import attrgetter
+from pprint import pprint
 from time import time
 
 import discord
 from discord import Guild
+from discord.ext import commands
 from discord.ext.commands import (
     Cog,
     command,
@@ -52,8 +54,9 @@ class MiscCog(Cog, name="Divers"):
         await ctx.send(msg)
 
     @command(name="status")
+    @commands.has_role(Role.CNO)
     async def status_cmd(self, ctx: Context):
-        """Affiche des informations à propos du serveur."""
+        """(cno) Affiche des informations à propos du serveur."""
         guild: Guild = ctx.guild
         embed = discord.Embed(title="État du serveur", color=EMBED_COLOR)
         benevoles = [g for g in guild.members if has_role(g, Role.BENEVOLE)]

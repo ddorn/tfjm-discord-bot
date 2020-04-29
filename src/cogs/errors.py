@@ -66,7 +66,7 @@ class ErrorsCog(Cog):
         specific_handler = handlers.get(type(error.original))
 
         if specific_handler:
-            return await specific_handler(ctx, error)
+            return await specific_handler(self, ctx, error)
 
         traceback.print_tb(error.original.__traceback__, file=sys.stderr)
         return (

@@ -7,7 +7,7 @@ from discord.ext.commands import Cog, Bot, group, Context
 from discord.utils import get, find
 
 from src.constants import *
-
+from src.utils import has_role
 
 Team = namedtuple("Team", ["name", "trigram", "tournoi", "secret", "status"])
 
@@ -234,6 +234,27 @@ class TeamsCog(Cog, name="Teams"):
             category=team_channel_category,
             reason=f"{ctx.author.name} à demandé un salon vocale pour son équipe.",
         )
+
+    @team.command(name="list")
+    @commands.has_role(Role.CNO)
+    async def list_cmd(self, ctx):
+        """(cno) Affiche les équipes de chaque tournoi présentes sur le discord."""
+
+        embed = discord.Embed(title="Liste des équipes", color=EMBED_COLOR)
+
+        captains = [m for m in ctx.guild.members if has_role(m, Role.CAPTAIN)]
+        tournois = {
+            tournoi: [c for c in captains if has_role(c, tournoi)]
+            for tournoi in TOURNOIS
+        }
+
+        for tournoi, caps in tournois.items():
+            # we assume captains have exactly one team.
+            txt = "\n".join(self.teams_for(c)[0][0].trigram for c in caps)
+            txt = txt or "Il n'y a pas encore d'équipes sur le discord."
+            embed.add_field(name=tournoi, value=txt)
+
+        await ctx.send(embed=embed)
 
 
 def setup(bot: Bot):
