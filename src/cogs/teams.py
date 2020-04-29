@@ -13,7 +13,8 @@ Team = namedtuple("Team", ["name", "trigram", "tournoi", "secret", "status"])
 
 
 class TeamsCog(Cog, name="Teams"):
-    def __init__(self):
+    def __init__(self, bot: Bot):
+        self.bot = bot
         self.teams = self.load_teams()
 
     def load_teams(self):
@@ -35,9 +36,11 @@ class TeamsCog(Cog, name="Teams"):
                 teams.append((team, role))
         return teams
 
-    @group(name="team")
+    @group(name="team", invoke_without_command=True)
     async def team(self, ctx):
         """Groupe de commandes pour la gestion des équipes."""
+
+        await ctx.invoke(self.bot.get_command("help"), "team")
 
     @team.command(name="create")
     async def create_team(self, ctx: Context, trigram, team_secret):
@@ -234,4 +237,4 @@ class TeamsCog(Cog, name="Teams"):
 
 
 def setup(bot: Bot):
-    bot.add_cog(TeamsCog())
+    bot.add_cog(TeamsCog(bot))

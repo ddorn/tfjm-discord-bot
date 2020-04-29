@@ -47,7 +47,7 @@ class MiscCog(Cog, name="Divers"):
         msg = random.choice(jokes)
         await ctx.send(msg)
 
-    @command(name="help-test", aliases=["h"])
+    @command(name="help", aliases=["h"])
     async def help_test(self, ctx: Context, *args):
         """Affiche ce message"""
 
@@ -99,11 +99,12 @@ class MiscCog(Cog, name="Divers"):
         name = " ".join(args)
         comm: Command = self.bot.get_command(name)
         if comm is None:
-            await ctx.send(
+            return await ctx.send(
                 f"La commande `!{name}` n'existe pas. "
                 f"Utilise `!help` pour une liste des commandes."
             )
-            return
+        elif isinstance(comm, Group):
+            return await self.send_group_help(ctx, comm)
 
         embed = discord.Embed(
             title=f"Aide pour la commande `!{comm.qualified_name}`",
@@ -119,6 +120,41 @@ class MiscCog(Cog, name="Divers"):
             embed.add_field(
                 name="Usage", value=f"`!{comm.qualified_name} {comm.signature}`"
             )
+        embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
+
+        await ctx.send(embed=embed)
+
+    async def send_group_help(self, ctx, group: Group):
+        embed = discord.Embed(
+            title=f"Aide pour le groupe de commandes `!{group.qualified_name}`",
+            description=group.help,
+            color=0xFFA500,
+        )
+
+        comms = await self.filter_commands(ctx, group.commands, sort=True)
+        if not comms:
+            embed.add_field(
+                name="Désolé", value="Il n'y a aucune commande pour toi ici."
+            )
+        else:
+            names = ["!" + c.qualified_name for c in comms]
+            width = max(map(len, names))
+            names = [name.rjust(width) for name in names]
+            short_help = [c.short_doc for c in comms]
+
+            lines = [f"`{n}` - {h}" for n, h in zip(names, short_help)]
+
+            c: Command
+            text = "\n".join(lines)
+            embed.add_field(name="Sous-commandes", value=text, inline=False)
+
+            if group.aliases:
+                aliases = ", ".join(f"`{a}`" for a in group.aliases)
+                embed.add_field(name="Alias", value=aliases, inline=True)
+            if group.signature:
+                embed.add_field(
+                    name="Usage", value=f"`!{group.qualified_name} {group.signature}`"
+                )
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
         await ctx.send(embed=embed)
@@ -152,7 +188,7 @@ class MiscCog(Cog, name="Divers"):
         """
 
         if sort and key is None:
-            key = lambda c: c.name
+            key = lambda c: c.qualified_name
 
         iterator = (
             commands if self.show_hidden else filter(lambda c: not c.hidden, commands)

@@ -655,7 +655,9 @@ class TirageCog(Cog, name="Tirages"):
 
     @group(name="draw", aliases=["d", "tirage"], invoke_without_command=True)
     async def draw_group(self, ctx: Context) -> None:
-        """Groupe de commandes pour les tirages. Détails: `!help draw`"""
+        """Groupe de commandes pour les tirages."""
+
+        await ctx.invoke(self.bot.get_command("help"), "draw")
 
     @draw_group.command(
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",

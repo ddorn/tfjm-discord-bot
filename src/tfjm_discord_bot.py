@@ -61,6 +61,7 @@ async def on_command_error(ctx: Context, error, *args, **kwargs):
     await ctx.send(msg)
 
 
+bot.remove_command("help")
 bot.load_extension("src.cogs.tirages")
 bot.load_extension("src.cogs.teams")
 bot.load_extension("src.cogs.dev")
