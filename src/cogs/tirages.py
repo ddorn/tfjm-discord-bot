@@ -54,8 +54,21 @@ class Team(yaml.YAMLObject):
             return 2 - 0.5 * (len(self.rejected[round]) - MAX_REFUSE)
 
     def details(self, round):
-        return f"""{self.mention}:
- - Accepté: {self.accepted_problems[round]}
+
+        info = {
+            # "Accepté": self.accepted_problems[round],
+            "Refusés": ", ".join(p[0] for p in self.rejected[round])
+            if self.rejected[round]
+            else "aucun",
+            "Coefficient": self.coeff(round),
+            # "Ordre passage": self.passage_order[round],
+        }
+
+        width = max(map(len, info))
+
+        return "\n".join(f"`{n.rjust(width)}`: {v}" for n, v in info.items())
+
+        return f""" - Accepté: {self.accepted_problems[round]}
  - Refusés: {", ".join(p[0] for p in self.rejected[round]) if self.rejected[round] else "aucun"}
  - Coefficient: {self.coeff(round)}
  - Ordre au tirage: {self.tirage_order[round]}
@@ -160,8 +173,7 @@ class Tirage(yaml.YAMLObject):
         ]
 
     async def show(self, ctx):
-        teams = ", ".join(team.mention for team in self.teams)
-        msg = f"Voici un résumé du tirage entre les équipes {teams}."
+        teams = ", ".join(team.name for team in self.teams)
 
         if len(self.teams) == 3:
             table = """```
@@ -192,13 +204,25 @@ class Tirage(yaml.YAMLObject):
     +-----+---------+---------+---------+---------+
 ```"""
 
-        await ctx.send(msg)
-        for round in (0, 1):
-            msg = f"\n\n**{ROUND_NAMES[round].capitalize()}**:\n"
-            msg += table.format(*self.records(round)) + "\n"
-            for team in self.teams:
-                msg += team.details(round)
-            await ctx.send(msg)
+        embed = discord.Embed(
+            title=f"Résumé du tirage entre {teams}", color=EMBED_COLOR
+        )
+
+        for r in (0, 1):
+            embed.add_field(
+                name=ROUND_NAMES[r].capitalize(),
+                value=table.format(*self.records(r)),
+                inline=False,
+            )
+
+            for team in in_passage_order(self.teams, r):
+                embed.add_field(
+                    name=team.name + " - " + team.accepted_problems[r],
+                    value=team.details(r),
+                    inline=True,
+                )
+
+        await ctx.send(embed=embed)
 
     async def show_tex(self, ctx):
         if len(self.teams) == 3:
