@@ -10,6 +10,9 @@ from discord.utils import get
 from src.constants import *
 
 
+COGS_SHORTCUTS = {"d": "dev", "ts": "teams", "t": "tirages", "m": "misc", "e": "errors"}
+
+
 class DevCog(Cog, name="Dev tools"):
     def __init__(self, bot: Bot):
         self.bot = bot
@@ -47,7 +50,16 @@ class DevCog(Cog, name="Dev tools"):
         )
         await ctx.send("Tout va mieux !")
 
-    @command(name="reload", aliases=["r"])
+    def full_cog_name(self, name):
+        name = COGS_SHORTCUTS.get(name, name)
+        if not "." in name:
+            name = f"src.cogs.{name}"
+
+        return name
+
+    @command(
+        name="reload", aliases=["r"], usage=f"[{'|'.join(COGS_SHORTCUTS.values())}]"
+    )
     @has_role(Role.DEV)
     async def reload_cmd(self, ctx, name):
         """
@@ -57,11 +69,7 @@ class DevCog(Cog, name="Dev tools"):
         possibles: `teams`, `tirages`, `dev`.
         """
 
-        MAP = {"d": "dev", "ts": "teams", "t": "tirages", "m": "misc"}
-        name = MAP.get(name, name)
-
-        if not "." in name:
-            name = f"src.cogs.{name}"
+        name = self.full_cog_name(name)
 
         try:
             self.bot.reload_extension(name)
@@ -71,6 +79,25 @@ class DevCog(Cog, name="Dev tools"):
         else:
             await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
 
+    @command(name="load", aliases=["l"])
+    @has_role(Role.DEV)
+    async def load_cmd(self, ctx, name):
+        """
+        (dev) Ajoute une catégorie de commandes.
+
+        Permet d'ajouter dynamiquement un cog sans redémarrer le bot.
+        """
+        name = self.full_cog_name(name)
+
+        try:
+            self.bot.load_extension(name)
+        except:
+            await ctx.send(f":grimacing: **{name}** n'a pas pu être chargée.")
+            raise
+        else:
+            await ctx.send(f":tada: L'extension **{name}** a bien été ajoutée !")
+
+    # noinspection PyUnreachableCode
     @command(name="setup-roles")
     @has_role(Role.DEV)
     async def setup_roles(self, ctx):
