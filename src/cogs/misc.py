@@ -1,5 +1,7 @@
 import itertools
 import random
+import sys
+import traceback
 from operator import attrgetter
 
 import discord
@@ -11,9 +13,13 @@ from discord.ext.commands import (
     Command,
     CommandError,
     Group,
+    CommandInvokeError,
+    CommandNotFound,
+    MissingRole,
 )
 
 from src.constants import *
+from src.errors import UnwantedCommand
 
 
 class MiscCog(Cog, name="Divers"):
@@ -47,8 +53,10 @@ class MiscCog(Cog, name="Divers"):
         msg = random.choice(jokes)
         await ctx.send(msg)
 
+    # ----------------- Help ---------------- #
+
     @command(name="help", aliases=["h"])
-    async def help_test(self, ctx: Context, *args):
+    async def help_cmd(self, ctx: Context, *args):
         """Affiche ce message"""
 
         if not args:
@@ -112,7 +120,6 @@ class MiscCog(Cog, name="Divers"):
             color=0xFFA500,
         )
 
-        # embed.set_author(name="*oooo*")
         if comm.aliases:
             aliases = ", ".join(f"`{a}`" for a in comm.aliases)
             embed.add_field(name="Alias", value=aliases, inline=True)
@@ -139,10 +146,10 @@ class MiscCog(Cog, name="Divers"):
         else:
             names = ["!" + c.qualified_name for c in comms]
             width = max(map(len, names))
-            names = [name.rjust(width) for name in names]
+            just_names = [name.rjust(width) for name in names]
             short_help = [c.short_doc for c in comms]
 
-            lines = [f"`{n}` - {h}" for n, h in zip(names, short_help)]
+            lines = [f"`{n}` - {h}" for n, h in zip(just_names, short_help)]
 
             c: Command
             text = "\n".join(lines)
@@ -155,6 +162,14 @@ class MiscCog(Cog, name="Divers"):
                 embed.add_field(
                     name="Usage", value=f"`!{group.qualified_name} {group.signature}`"
                 )
+
+            embed.add_field(
+                name="Plus d'aide",
+                value=f"Pour plus de détails sur une commande, "
+                f"il faut écrire `!help COMMANDE` en remplaçant "
+                f"COMMANDE par le nom de la commande qui t'intéresse.\n"
+                f"Exemple: `!help {random.choice(names)[1:]}`",
+            )
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
         await ctx.send(embed=embed)
