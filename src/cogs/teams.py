@@ -7,13 +7,14 @@ from discord.ext.commands import Cog, Bot, group, Context
 from discord.utils import get, find
 
 from src.constants import *
+from src.core import CustomBot
 from src.utils import has_role
 
 Team = namedtuple("Team", ["name", "trigram", "tournoi", "secret", "status"])
 
 
 class TeamsCog(Cog, name="Teams"):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: CustomBot):
         self.bot = bot
         self.teams = self.load_teams()
 

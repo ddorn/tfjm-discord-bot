@@ -14,6 +14,7 @@ from discord.ext.commands import group, Cog, Context
 from discord.utils import get
 
 from src.constants import *
+from src.core import CustomBot
 from src.errors import TfjmError, UnwantedCommand
 
 __all__ = ["Tirage", "TirageCog"]
@@ -606,7 +607,7 @@ class TirageOrderPhase(OrderPhase):
 
 class TirageCog(Cog, name="Tirages"):
     def __init__(self, bot):
-        self.bot: commands.Bot = bot
+        self.bot: CustomBot = bot
 
         # We retrieve the global variable.
         # We don't want tirages to be ust an attribute
@@ -627,13 +628,21 @@ class TirageCog(Cog, name="Tirages"):
         if channel in self.tirages:
             await self.tirages[channel].dice(ctx, n)
         else:
+            if n == 0:
+                raise TfjmError(f"Un dé sans faces ? Le concept m'intéresse...")
             if n < 1:
-                raise TfjmError(f"Je ne peux pas lancer un dé à {n} faces, désolé.")
+                raise TfjmError(
+                    f"Je ne peux pas lancer un dé avec un "
+                    f"nombre négatif faces, désolé."
+                )
+            if len(str(n)) > 1900:
+                raise TfjmError(
+                    "Oulà... Je sais que la taille ça ne compte pas, "
+                    "mais là il est vraiment gros ton dé !"
+                )
 
             dice = random.randint(1, n)
-            await ctx.send(
-                f"Le dé à {n} face{'s' * (n > 1)} s'est arrêté sur... **{dice}**"
-            )
+            await ctx.send(f"{ctx.author.mention} : {Emoji.DICE} {dice}")
 
     @commands.command(
         name="random-problem",

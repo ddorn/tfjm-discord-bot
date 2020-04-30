@@ -59,6 +59,8 @@ class Role:
 class Emoji:
     JOY = "😂"
     SOB = "😭"
+    BIN = "🗑️"
+    DICE = "🎲"
 
 
 class File:
@@ -71,3 +73,8 @@ class File:
 with open(File.TOP_LEVEL / "data" / "problems") as f:
     PROBLEMS = f.read().splitlines()
 MAX_REFUSE = len(PROBLEMS) - 4  # -5 usually but not in 2020 because of covid-19
+
+
+def setup(bot):
+    # Just so we can reload the constants
+    pass

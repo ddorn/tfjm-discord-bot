@@ -5,8 +5,8 @@ import discord
 from discord.ext.commands import *
 from discord.utils import maybe_coroutine
 
-from src.errors import UnwantedCommand
-
+from src.core import CustomBot
+from src.errors import UnwantedCommand, TfjmError
 
 # Global variable and function because I'm too lazy to make a metaclass
 handlers = {}
@@ -29,6 +29,9 @@ def handles(error_type):
 class ErrorsCog(Cog):
     """This cog defines all the handles for errors."""
 
+    def __init__(self, bot: CustomBot):
+        self.bot = bot
+
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError):
         print(repr(error), file=sys.stderr)
@@ -47,10 +50,11 @@ class ErrorsCog(Cog):
             msg = await maybe_coroutine(handler, self, ctx, error)
 
         if msg:
-            await ctx.send(msg)
+            message = await ctx.send(msg)
+            await self.bot.wait_for_bin(ctx.message.author, message)
 
     @handles(UnwantedCommand)
-    async def on_unwanted_command(self, ctx, error):
+    async def on_unwanted_command(self, ctx, error: UnwantedCommand):
         await ctx.message.delete()
         author: discord.Message
         await ctx.author.send(
@@ -59,14 +63,19 @@ class ErrorsCog(Cog):
             + "\nC'est pas grave, c'est juste pour ne pas encombrer "
             "le chat lors du tirage."
         )
-        await ctx.author.send("Raison: " + error.original.msg)
+        await ctx.author.send("Raison: " + error.msg)
+
+    @handles(TfjmError)
+    async def on_tfjm_error(self, ctx: Context, error: TfjmError):
+        msg = await ctx.send(error.msg)
+        await self.bot.wait_for_bin(ctx.author, msg)
 
     @handles(CommandInvokeError)
     async def on_command_invoke_error(self, ctx, error):
         specific_handler = handlers.get(type(error.original))
 
         if specific_handler:
-            return await specific_handler(self, ctx, error)
+            return await specific_handler(self, ctx, error.original)
 
         traceback.print_tb(error.original.__traceback__, file=sys.stderr)
         return (
@@ -91,4 +100,4 @@ class ErrorsCog(Cog):
 
 
 def setup(bot):
-    bot.add_cog(ErrorsCog())
+    bot.add_cog(ErrorsCog(bot))

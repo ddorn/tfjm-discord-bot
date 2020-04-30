@@ -17,13 +17,15 @@ from discord.ext.commands import (
     Group,
 )
 
+from src import utils
 from src.constants import *
 from src.constants import Emoji
-from src.utils import has_role
+from src.core import CustomBot
+from src.utils import has_role, start_time
 
 
 class MiscCog(Cog, name="Divers"):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: CustomBot):
         self.bot = bot
         self.show_hidden = False
         self.verify_checks = True
@@ -55,6 +57,7 @@ class MiscCog(Cog, name="Divers"):
 
         await message.add_reaction(Emoji.JOY)
         await message.add_reaction(Emoji.SOB)
+        await self.bot.wait_for_bin(ctx.message.author, message)
 
     @command(name="status")
     @commands.has_role(Role.CNO)
@@ -65,7 +68,7 @@ class MiscCog(Cog, name="Divers"):
         benevoles = [g for g in guild.members if has_role(g, Role.BENEVOLE)]
         participants = [g for g in guild.members if has_role(g, Role.PARTICIPANT)]
         no_role = [g for g in guild.members if g.top_role == guild.default_role]
-        uptime = datetime.timedelta(seconds=round(time() - START_TIME))
+        uptime = datetime.timedelta(seconds=round(time() - start_time()))
 
         infos = {
             "Bénévoles": len(benevoles),

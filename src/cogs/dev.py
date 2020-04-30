@@ -1,4 +1,6 @@
 import code
+import sys
+from importlib import reload
 from pprint import pprint
 
 import discord
@@ -8,13 +10,20 @@ from discord.ext.commands import Cog
 from discord.utils import get
 
 from src.constants import *
+from src.core import CustomBot
 
-
-COGS_SHORTCUTS = {"d": "dev", "ts": "teams", "t": "tirages", "m": "misc", "e": "errors"}
+COGS_SHORTCUTS = {
+    "d": "tirages",
+    "e": "errors",
+    "m": "misc",
+    "t": "teams",
+    "u": "src.utils",
+    "v": "dev",
+}
 
 
 class DevCog(Cog, name="Dev tools"):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: CustomBot):
         self.bot = bot
 
     @command(name="interrupt")
@@ -68,6 +77,11 @@ class DevCog(Cog, name="Dev tools"):
         A utiliser quand le code change. Arguments
         possibles: `teams`, `tirages`, `dev`.
         """
+
+        if name is None:
+            self.bot.reload()
+            await ctx.send(":tada: The bot was reloaded !")
+            return
 
         names = [name] if name else list(COGS_SHORTCUTS.values())
 
