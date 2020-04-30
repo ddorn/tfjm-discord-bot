@@ -8,7 +8,7 @@ from discord.utils import get, find
 
 from src.constants import *
 from src.core import CustomBot
-from src.utils import has_role
+from src.utils import has_role, send_and_bin
 
 Team = namedtuple("Team", ["name", "trigram", "tournoi", "secret", "status"])
 
@@ -46,7 +46,7 @@ class TeamsCog(Cog, name="Teams"):
     @team.command(name="create")
     async def create_team(self, ctx: Context, trigram, team_secret):
         """
-        Permet aux capitaines de créer leur equipes.
+        Permet aux capitaines de créer leur equipe.
 
         Pour utiliser cette commande, il faut ton trigram et ton code
         d'équipe. Tu peux ensuite écrire `!team create TRIGRAM SECRET`
@@ -66,21 +66,21 @@ class TeamsCog(Cog, name="Teams"):
         captain_role = get(ctx.guild.roles, name=Role.CAPTAIN)
 
         if team is None:
-            await ctx.send(
+            msg = (
                 f"{ctx.author.mention}: le trigram `{trigram}` "
                 f"n'est pas valide. Es-tu sûr d'avoir le bon ?"
             )
         elif role is not None:
             # Team exists
             captain = find(lambda m: captain_role in m.roles, role.members)
-            await ctx.send(
+            msg = (
                 f"{ctx.author.mention}: l'équipe {trigram} "
                 f"existe déjà. Tu peux demander a ton capitaine "
                 f"{captain.mention} de t'ajouter à l'équipe avec "
                 f"`!team add {ctx.author.name}`"
             )
         elif team_secret != team.secret:
-            await ctx.send(
+            msg = (
                 f"{ctx.author.mention}: ton secret n'est pas valide, "
                 f"Tu peux le trouver sur https://inscription.tfjm.org/mon-equipe."
             )
@@ -103,7 +103,7 @@ class TeamsCog(Cog, name="Teams"):
                 reason="Creation of team " + trigram,
             )
 
-            await ctx.send(
+            msg = (
                 f"L'équipe {team_role.mention} a été créée et son capitaine "
                 f"est {ctx.author.mention}"
             )
@@ -122,8 +122,12 @@ class TeamsCog(Cog, name="Teams"):
                 f"une meilleure expérience ici, envoie un petit message à {diego.mention} ;)"
             )
 
+        msg = await ctx.send(msg)
+        await self.bot.wait_for_bin(ctx.author, msg)
+
     @team.command(name="add")
     @commands.has_role(Role.CAPTAIN)
+    @send_and_bin
     async def team_add(self, ctx, member: discord.Member):
         """
         (cap) Ajoute un membre a ton équipe.
@@ -141,12 +145,12 @@ class TeamsCog(Cog, name="Teams"):
         member_teams = self.teams_for(member)
 
         if member_teams:
-            await ctx.send(
+            return (
                 f"{member.mention} est déjà dans une équipe "
                 f"et ne peut pas être dans deux à la fois."
             )
         elif len(author_teams) > 1:
-            await ctx.send(
+            return (
                 f"Tu est dans plusieurs équipes, je ne sais "
                 f"pas où l'ajouter. Il faut demander à un organisateur "
                 f"de le faire."
@@ -162,12 +166,11 @@ class TeamsCog(Cog, name="Teams"):
                 participant,
                 reason=f"{ctx.author.name} l'a ajouté à son équipe",
             )
-            await ctx.send(
-                f"{member.mention} a été ajouté dans l'équipe {the_team[1].mention}"
-            )
+            return f"{member.mention} a été ajouté dans l'équipe {the_team[1].mention}"
 
     @team.command(name="channel")
     @commands.has_role(Role.CAPTAIN)
+    @send_and_bin
     async def team_channel(self, ctx, *channel_name):
         """
         (cap) Crée une channel privée pour l'équipe
@@ -180,18 +183,17 @@ class TeamsCog(Cog, name="Teams"):
         """
 
         if not channel_name:
-            await ctx.send(
+            return (
                 "Tu dois mettre un nom d'équipe, par exemple "
                 "`!team channel un-super-nom`"
             )
-            return
 
         channel_name = " ".join(channel_name)
 
         guild: discord.Guild = ctx.guild
         team_role = self.teams_for(ctx.author)[0][1]
         team_channel_category = get(guild.categories, name=TEAMS_CHANNEL_CATEGORY)
-        await guild.create_text_channel(
+        channel = await guild.create_text_channel(
             channel_name,
             overwrites={
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -201,8 +203,11 @@ class TeamsCog(Cog, name="Teams"):
             reason=f"{ctx.author.name} à demandé une channel pour son équipe.",
         )
 
+        return f"{ctx.author.mention}: Le salon d'équipe {channel.mention} à été créé."
+
     @team.command(name="voice", usage="Nom du salon")
     @commands.has_role(Role.CAPTAIN)
+    @send_and_bin
     async def team_voice(self, ctx, *channel_name):
         """
         (cap) Crée une channel vocale privée pour l'équipe
@@ -215,18 +220,17 @@ class TeamsCog(Cog, name="Teams"):
         """
 
         if not channel_name:
-            await ctx.send(
+            return (
                 "Tu dois mettre un nom d'équipe, par exemple "
                 "`!team voice un-super-nom`"
             )
-            return
 
         channel_name = " ".join(channel_name)
 
         guild: discord.Guild = ctx.guild
         team_role = self.teams_for(ctx.author)[0][1]
         team_channel_category = get(guild.categories, name=TEAMS_CHANNEL_CATEGORY)
-        await guild.create_voice_channel(
+        channel = await guild.create_voice_channel(
             channel_name,
             overwrites={
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -235,6 +239,8 @@ class TeamsCog(Cog, name="Teams"):
             category=team_channel_category,
             reason=f"{ctx.author.name} à demandé un salon vocale pour son équipe.",
         )
+
+        return f"{ctx.author.mention}: La salon vocal '{channel.mention}' à été créé."
 
     @team.command(name="list")
     @commands.has_role(Role.CNO)
@@ -258,5 +264,5 @@ class TeamsCog(Cog, name="Teams"):
         await ctx.send(embed=embed)
 
 
-def setup(bot: Bot):
+def setup(bot: CustomBot):
     bot.add_cog(TeamsCog(bot))

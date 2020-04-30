@@ -44,7 +44,8 @@ class MiscCog(Cog, name="Divers"):
         """
 
         choice = random.choice(args)
-        await ctx.send(f"J'ai choisi... **{choice}**")
+        msg = await ctx.send(f"J'ai choisi... **{choice}**")
+        await self.bot.wait_for_bin(ctx.author, msg),
 
     @command(name="joke", aliases=["blague"], hidden=True)
     async def joke_cmd(self, ctx):
@@ -93,9 +94,11 @@ class MiscCog(Cog, name="Divers"):
         """Affiche des détails à propos d'une commande."""
 
         if not args:
-            await self.send_bot_help(ctx)
+            msg = await self.send_bot_help(ctx)
         else:
-            await self.send_command_help(ctx, args)
+            msg = await self.send_command_help(ctx, args)
+
+        await self.bot.wait_for_bin(ctx.author, msg)
 
     async def send_bot_help(self, ctx: Context):
         embed = discord.Embed(
@@ -134,7 +137,7 @@ class MiscCog(Cog, name="Divers"):
 
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
-        await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
     async def send_command_help(self, ctx, args):
         name = " ".join(args)
@@ -162,7 +165,7 @@ class MiscCog(Cog, name="Divers"):
             )
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
-        await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
     async def send_group_help(self, ctx, group: Group):
         embed = discord.Embed(
@@ -205,7 +208,7 @@ class MiscCog(Cog, name="Divers"):
             )
         embed.set_footer(text="Suggestion ? Problème ? Envoie un message à @Diego")
 
-        await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
     def _name(self, command: Command):
         return f"`!{command.qualified_name}`"
@@ -265,5 +268,5 @@ class MiscCog(Cog, name="Divers"):
         return ret
 
 
-def setup(bot: Bot):
+def setup(bot: CustomBot):
     bot.add_cog(MiscCog(bot))

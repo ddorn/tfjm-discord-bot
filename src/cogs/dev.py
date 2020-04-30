@@ -168,6 +168,12 @@ class DevCog(Cog, name="Dev tools"):
 
             await ctx.send(str(jury_channel))
 
+    @command(name="send", hidden=True)
+    @has_role(Role.DEV)
+    async def send_cmd(self, ctx, *msg):
+        await ctx.message.delete()
+        await ctx.send(" ".join(msg))
+
 
 def setup(bot: Bot):
     bot.add_cog(DevCog(bot))
