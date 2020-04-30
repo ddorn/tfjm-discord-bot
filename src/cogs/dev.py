@@ -1,12 +1,9 @@
 import code
-import sys
-from importlib import reload
 from pprint import pprint
 
 import discord
-from discord import Colour, TextChannel, PermissionOverwrite
-from discord.ext.commands import command, has_role, Bot, has_any_role
-from discord.ext.commands import Cog
+from discord import TextChannel, PermissionOverwrite
+from discord.ext.commands import command, has_role, Bot, Cog
 from discord.utils import get
 
 from src.constants import *
@@ -168,9 +165,10 @@ class DevCog(Cog, name="Dev tools"):
 
             await ctx.send(str(jury_channel))
 
-    @command(name="send", hidden=True)
+    @command(name="send")
     @has_role(Role.DEV)
     async def send_cmd(self, ctx, *msg):
+        """Envoie un message."""
         await ctx.message.delete()
         await ctx.send(" ".join(msg))
 

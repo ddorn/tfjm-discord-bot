@@ -2,10 +2,8 @@ import asyncio
 import sys
 from importlib import reload
 
-import psutil
 from discord import User, Message, Reaction
 from discord.ext.commands import Bot
-
 
 __all__ = ["CustomBot"]
 

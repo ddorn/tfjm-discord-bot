@@ -5,7 +5,7 @@ import random
 from collections import defaultdict, namedtuple
 from io import StringIO
 from pprint import pprint
-from typing import Type, List, Dict
+from typing import Type, Dict
 
 import discord
 import yaml

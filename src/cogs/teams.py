@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import discord
 from discord.ext import commands
-from discord.ext.commands import Cog, Bot, group, Context
+from discord.ext.commands import Cog, group, Context
 from discord.utils import get, find
 
 from src.constants import *

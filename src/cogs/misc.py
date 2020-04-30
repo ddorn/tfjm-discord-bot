@@ -11,13 +11,11 @@ from discord.ext.commands import (
     Cog,
     command,
     Context,
-    Bot,
     Command,
     CommandError,
     Group,
 )
 
-from src import utils
 from src.constants import *
 from src.constants import Emoji
 from src.core import CustomBot
