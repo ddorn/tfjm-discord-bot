@@ -12,7 +12,6 @@ __all__ = [
     "DIEGO",
     "TOURNOIS",
     "EMBED_COLOR",
-    "START_TIME",
     "File",
     "Emoji",
 ]
@@ -29,7 +28,6 @@ if TOKEN is None:
     print()
     quit(1)
 
-START_TIME = time()
 GUILD = "690934836696973404"
 DIEGO = "Diego"  # Mon display name
 TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"

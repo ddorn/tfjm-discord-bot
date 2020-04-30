@@ -1,3 +1,4 @@
+import psutil
 from discord import Message
 from discord.ext.commands import Context, Bot
 
@@ -14,6 +15,10 @@ async def send_and_bin(bot: Bot, ctx: Context, msg=None, *, embed=None):
     message: Message = await ctx.send(msg, embed=embed)
 
     await msg
+
+
+def start_time():
+    return psutil.Process().create_time()
 
 
 def setup(bot):

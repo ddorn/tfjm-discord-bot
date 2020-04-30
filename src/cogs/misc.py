@@ -48,7 +48,7 @@ class MiscCog(Cog, name="Divers"):
     async def joke_cmd(self, ctx):
         await ctx.message.delete()
         with open(File.JOKES) as f:
-            jokes = f.read().split("\n\n\n")
+            jokes = f.read().split("---")
 
         msg = random.choice(jokes)
         message: discord.Message = await ctx.send(msg)
