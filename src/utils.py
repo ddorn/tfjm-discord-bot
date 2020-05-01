@@ -27,7 +27,7 @@ def send_and_bin(f):
     return wrapped
 
 
-def start_time(self):
+def start_time():
     return psutil.Process().create_time()
 
 

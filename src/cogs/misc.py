@@ -1,9 +1,11 @@
 import datetime
+import io
 import itertools
 import random
 from operator import attrgetter
 from time import time
 
+import aiohttp
 import discord
 from discord import Guild
 from discord.ext import commands
@@ -84,6 +86,18 @@ class MiscCog(Cog, name="Divers"):
         embed.add_field(name="Stats", value=txt)
 
         await ctx.send(embed=embed)
+
+    @command(hidden=True)
+    async def fractal(self, ctx: Context):
+        await ctx.message.add_reaction(Emoji.CHECK)
+
+        seed = random.randint(0, 1_000_000_000)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(FRACTAL_URL.format(seed=seed)) as resp:
+                if resp.status != 200:
+                    return await ctx.send("Could not download file...")
+                data = io.BytesIO(await resp.read())
+                await ctx.send(file=discord.File(data, "cool_image.png"))
 
     # ----------------- Help ---------------- #
 

@@ -1,3 +1,4 @@
+import asyncio
 import code
 from pprint import pprint
 
@@ -5,6 +6,7 @@ import discord
 from discord import TextChannel, PermissionOverwrite
 from discord.ext.commands import command, has_role, Bot, Cog
 from discord.utils import get
+from ptpython.repl import embed
 
 from src.constants import *
 from src.core import CustomBot
@@ -17,6 +19,8 @@ COGS_SHORTCUTS = {
     "u": "src.utils",
     "v": "dev",
 }
+
+KeyboardInterrupt
 
 
 class DevCog(Cog, name="Dev tools"):
@@ -42,18 +46,17 @@ class DevCog(Cog, name="Dev tools"):
 
         # Utility functions
 
-        local = {
-            **globals(),
-            **locals(),
-            "pprint": pprint,
-            "_show": lambda o: print(*dir(o), sep="\n"),
-            "__name__": "__console__",
-            "__doc__": None,
-        }
+        def send(msg, channel=None):
+            channel = channel or ctx.channel
+            asyncio.create_task(channel.send(msg))
 
-        code.interact(
-            banner="Ne SURTOUT PAS FAIRE Ctrl+C !\n(TFJM² debugger)", local=local
-        )
+        try:
+            await embed(
+                globals(), locals(), vi_mode=True, return_asyncio_coroutine=True
+            )
+        except EOFError:
+            pass
+
         await ctx.send("Tout va mieux !")
 
     def full_cog_name(self, name):
@@ -121,17 +124,24 @@ class DevCog(Cog, name="Dev tools"):
         """
 
         return
-
         guild: discord.Guild = ctx.guild
         nothing = PermissionOverwrite(read_messages=False)
         see = PermissionOverwrite(read_messages=True)
+        # orga = get(guild.roles, name=f"Orga {t}")
+
+        for t in TOURNOIS[3:]:
+            jury = get(guild.roles, name=f"Jury {t}")
+            for p in "AB":
+                await guild.create_voice_channel(
+                    f"blabla-jury-poule-{p}",
+                    overwrites={guild.default_role: nothing, jury: see},
+                    category=get(guild.categories, name=t),
+                )
 
         return
 
         aide: TextChannel = get(guild.text_channels, name="aide")
         for t in TOURNOIS:
-            orga = get(guild.roles, name=f"Orga {t}")
-            jury = get(guild.roles, name=f"Jury {t}")
             await aide.set_permissions(orga, overwrite=see)
             await aide.set_permissions(jury, overwrite=see)
 
@@ -173,5 +183,5 @@ class DevCog(Cog, name="Dev tools"):
         await ctx.send(" ".join(msg))
 
 
-def setup(bot: Bot):
+def setup(bot: CustomBot):
     bot.add_cog(DevCog(bot))

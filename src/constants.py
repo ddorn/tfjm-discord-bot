@@ -12,6 +12,7 @@ __all__ = [
     "DIEGO",
     "TOURNOIS",
     "EMBED_COLOR",
+    "FRACTAL_URL",
     "File",
     "Emoji",
 ]
@@ -32,6 +33,8 @@ GUILD = "690934836696973404"
 DIEGO = "Diego"  # Mon display name
 TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
 EMBED_COLOR = 0xFFA500
+FRACTAL_URL = "https://thefractal.space/img/{seed}.png?size=1500"
+
 ROUND_NAMES = ["premier tour", "deuxième tour"]
 TOURNOIS = [
     "Lille",
@@ -61,6 +64,7 @@ class Emoji:
     SOB = "😭"
     BIN = "🗑️"
     DICE = "🎲"
+    CHECK = "✅"
 
 
 class File:
