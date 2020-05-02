@@ -56,6 +56,7 @@ class Role:
     BENEVOLE = "Bénévole"
     CAPTAIN = "Capitaine"
     PARTICIPANT = "Participant"
+    TOURIST = "Touriste"
 
 
 class Emoji:

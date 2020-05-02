@@ -2,6 +2,7 @@ from collections import namedtuple
 from typing import List, Tuple
 
 import discord
+from discord import Member, VoiceChannel, PermissionOverwrite
 from discord.ext import commands
 from discord.ext.commands import Cog, group, Context
 from discord.utils import get, find
@@ -36,6 +37,86 @@ class TeamsCog(Cog, name="Teams"):
             if team:
                 teams.append((team, role))
         return teams
+
+    @commands.command(name="poule")
+    @commands.has_role(Role.CNO)
+    @send_and_bin
+    async def setup_poule(
+        self,
+        ctx: Context,
+        category: discord.CategoryChannel,
+        poule: str,
+        *teams: discord.Role,
+    ):
+        """(cno) Setup les permissions pour un salon vocal de poule"""
+        assert poule in "AB"
+        see = PermissionOverwrite(connect=True, speak=False)
+        speak = PermissionOverwrite(connect=True, speak=True)
+
+        guild: discord.Guild = ctx.guild
+        name = "Poule" + ("" if poule is None else " " + poule)
+        channel: VoiceChannel = get(
+            guild.voice_channels, category__name=category.name, name=name
+        )
+
+        role: discord.Role
+        for role in channel.overwrites:
+            # remove all permissions
+            await channel.set_permissions(role, overwrite=None)
+
+        orga = get(guild.roles, name=f"Orga {category.name}")
+        jury = get(guild.roles, name=f"Jury {category.name}")
+
+        await channel.set_permissions(
+            guild.default_role, connect=False, view_channel=False
+        )
+        await channel.set_permissions(
+            jury, view_channel=True, connect=True, mute_members=True
+        )
+        await channel.set_permissions(
+            orga, view_channel=True, connect=True, mute_members=True
+        )
+        for team in teams:
+            await channel.set_permissions(team, view_channel=True, connect=True)
+
+        # tourist_name = f"{category.name} {poule}"
+        # tourist = get(guild.roles, name=tourist_name)
+        # if tourist is None:
+        #     tourist = await guild.create_role(name=tourist_name)
+        #
+        # await channel.set_permissions(tourist, connect=True, speak=False)
+
+        # return str(channel.changed_roles)
+        return "C'est fait !"
+
+    @commands.command(name="tourist")
+    @commands.has_any_role(*Role.ORGAS)
+    @send_and_bin
+    async def touriste_cmd(self, ctx: Context, poule, member: Member):
+        """
+        (orga) Accepte quelqu'un comme touriste pour une certaine poule.
+
+        Exemple:
+            `!tourist A Diego` - Ajoute Diego comme touriste dans la Poule A
+        """
+
+        poule = f"Poule {poule}"
+        tournoi = find(lambda r: r.name.startswith("Orga"), ctx.author.roles)
+        tournoi_name = tournoi.name.partition(" ")[2]
+        guild: discord.Guild = ctx.guild
+
+        poule_channel: VoiceChannel = get(
+            guild.voice_channels, name=poule, category__name=tournoi_name
+        )
+        if poule_channel is None:
+            return f"La poule '{poule}' n'existe pas à {tournoi_name}"
+
+        touriste_role = get(guild.roles, name=Role.TOURIST)
+        region = get(guild.roles, name=tournoi_name)
+        await member.add_roles(touriste_role, region)
+
+        await poule_channel.set_permissions(member, view_channel=True, connect=True)
+        return f"{member.mention} à été ajouté comme spectateur dans la {poule} de {tournoi_name}"
 
     @group(name="team", invoke_without_command=True)
     async def team(self, ctx):
