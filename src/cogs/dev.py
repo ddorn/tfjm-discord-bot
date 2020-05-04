@@ -47,6 +47,9 @@ class DevCog(Cog, name="Dev tools"):
         # Utility functions
 
         def send(msg, channel=None):
+            if isinstance(channel, int):
+                channel = get(ctx.guild.channels, id=channel)
+
             channel = channel or ctx.channel
             asyncio.create_task(channel.send(msg))
 

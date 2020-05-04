@@ -2,7 +2,7 @@ import asyncio
 import sys
 from importlib import reload
 
-from discord import User, Message, Reaction
+from discord import User, Message, Reaction, NotFound
 from discord.ext.commands import Bot
 
 __all__ = ["CustomBot"]
@@ -67,4 +67,8 @@ class CustomBot(Bot):
             pass
 
         for m in msgs:
-            await m.clear_reaction(Emoji.BIN)
+            try:
+                await m.clear_reaction(Emoji.BIN)
+            except NotFound:
+                # Message or reaction deleted
+                pass

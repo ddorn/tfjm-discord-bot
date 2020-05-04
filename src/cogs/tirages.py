@@ -845,6 +845,7 @@ class TirageCog(Cog, name="Tirages"):
     @draw_group.command(name="dump")
     @commands.has_role(Role.DEV)
     async def dump_cmd(self, ctx, tirage_id: int, round=0):
+        """Affiche un résumé succint d'un tirage."""
         tirages = self.get_tirages()
 
         try:
@@ -863,11 +864,6 @@ class TirageCog(Cog, name="Tirages"):
             )
 
             await ctx.send(msg)
-
-    @draw_group.command()
-    @commands.has_role(Role.DEV)
-    async def debug(self, ctx, id: int):
-        pass
 
 
 def setup(bot):

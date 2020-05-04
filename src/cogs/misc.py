@@ -2,11 +2,14 @@ import datetime
 import io
 import itertools
 import random
+from dataclasses import dataclass, field
 from operator import attrgetter
 from time import time
+from typing import List, Set
 
 import aiohttp
 import discord
+import yaml
 from discord import Guild
 from discord.ext import commands
 from discord.ext.commands import (
@@ -16,12 +19,24 @@ from discord.ext.commands import (
     Command,
     CommandError,
     Group,
+    group,
 )
 
 from src.constants import *
 from src.constants import Emoji
 from src.core import CustomBot
-from src.utils import has_role, start_time
+from src.utils import has_role, start_time, send_and_bin
+
+
+@dataclass
+class Joke(yaml.YAMLObject):
+    yaml_tag = "Joke"
+    yaml_dumper = yaml.SafeDumper
+    yaml_loader = yaml.SafeLoader
+    joke: str
+    joker: int
+    likes: Set[int] = field(default_factory=set)
+    dislikes: Set[int] = field(default_factory=set)
 
 
 class MiscCog(Cog, name="Divers"):
@@ -47,19 +62,6 @@ class MiscCog(Cog, name="Divers"):
         msg = await ctx.send(f"J'ai choisi... **{choice}**")
         await self.bot.wait_for_bin(ctx.author, msg),
 
-    @command(name="joke", aliases=["blague"], hidden=True)
-    async def joke_cmd(self, ctx):
-        await ctx.message.delete()
-        with open(File.JOKES) as f:
-            jokes = f.read().split("---")
-
-        msg = random.choice(jokes)
-        message: discord.Message = await ctx.send(msg)
-
-        await message.add_reaction(Emoji.JOY)
-        await message.add_reaction(Emoji.SOB)
-        await self.bot.wait_for_bin(ctx.message.author, message)
-
     @command(name="status")
     @commands.has_role(Role.CNO)
     async def status_cmd(self, ctx: Context):
@@ -70,12 +72,15 @@ class MiscCog(Cog, name="Divers"):
         participants = [g for g in guild.members if has_role(g, Role.PARTICIPANT)]
         no_role = [g for g in guild.members if g.top_role == guild.default_role]
         uptime = datetime.timedelta(seconds=round(time() - start_time()))
-
+        text = len(guild.text_channels)
+        vocal = len(guild.voice_channels)
         infos = {
             "Bénévoles": len(benevoles),
             "Participants": len(participants),
             "Sans rôle": len(no_role),
             "Total": len(guild.members),
+            "Salons texte": text,
+            "Salons vocaux": vocal,
             "Bot uptime": uptime,
         }
 
@@ -98,6 +103,80 @@ class MiscCog(Cog, name="Divers"):
                     return await ctx.send("Could not download file...")
                 data = io.BytesIO(await resp.read())
                 await ctx.send(file=discord.File(data, "cool_image.png"))
+
+    # ---------------- Jokes ---------------- #
+
+    def load_jokes(self) -> List[Joke]:
+        # Ensure it exists
+        File.JOKES_V2.touch()
+        with open(File.JOKES_V2) as f:
+            jokes = list(yaml.safe_load_all(f))
+
+        return jokes
+
+    def save_jokes(self, jokes):
+        File.JOKES_V2.touch()
+        with open(File.JOKES_V2, "w") as f:
+            yaml.safe_dump_all(jokes, f)
+
+    @group(name="joke", hidden=True, invoke_without_command=True)
+    async def joke(self, ctx):
+        await ctx.message.delete()
+
+        jokes = self.load_jokes()
+        joke_id = random.randrange(len(jokes))
+        joke = jokes[joke_id]
+
+        message: discord.Message = await ctx.send(joke.joke)
+
+        await message.add_reaction(Emoji.PLUS_1)
+        await message.add_reaction(Emoji.MINUS_1)
+        await self.wait_for_joke_reactions(joke_id, message)
+
+    @joke.command(name="new", hidden=True)
+    @send_and_bin
+    async def new_joke(self, ctx: Context):
+        author: discord.Member = ctx.author
+        message: discord.Message = ctx.message
+
+        start = "!joke new "
+        msg = message.content[len(start) :]
+
+        joke = Joke(msg, ctx.author.id, set())
+
+        jokes = self.load_jokes()
+        jokes.append(joke)
+        self.save_jokes(jokes)
+        joke_id = len(jokes) - 1
+        await message.add_reaction(Emoji.PLUS_1)
+        await message.add_reaction(Emoji.MINUS_1)
+
+        await self.wait_for_joke_reactions(joke_id, message)
+
+    async def wait_for_joke_reactions(self, joke_id, message):
+        def check(reaction: discord.Reaction, u):
+            return (message.id == reaction.message.id) and str(reaction.emoji) in (
+                Emoji.PLUS_1,
+                Emoji.MINUS_1,
+            )
+
+        start = time()
+        end = start + 24 * 60 * 60
+        while time() < end:
+            reaction, user = await self.bot.wait_for(
+                "reaction_add", check=check, timeout=end - time()
+            )
+
+            if user.id == BOT:
+                continue
+
+            jokes = self.load_jokes()
+            if str(reaction.emoji) == Emoji.PLUS_1:
+                jokes[joke_id].likes.add(user.id)
+            else:
+                jokes[joke_id].dislikes.add(user.id)
+
+            self.save_jokes(jokes)
 
     # ----------------- Help ---------------- #
 

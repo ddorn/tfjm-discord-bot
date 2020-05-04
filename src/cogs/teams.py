@@ -189,17 +189,18 @@ class TeamsCog(Cog, name="Teams"):
                 f"est {ctx.author.mention}"
             )
 
-            diego = get(ctx.guild.members, display_name=DIEGO, top_role__name=Role.CNO)
+            diego = get(ctx.guild.members, id=DIEGO)
             await ctx.author.send(
-                f"Salut Capitaine !\n"
+                "Salut Capitaine !\n"
                 "On va être amené à faire de nombreuses choses ensemble "
                 "ces prochains jours, donc n'hésite pas à abuser de `!help`. "
                 "Tu peux l'utiliser ici mais malheureusement tu ne pourra pas voir "
                 "les commandes qui sont réservés aux capitaines. \n"
                 "Une commande que tu peux avoir envie d'utiliser c'est "
                 "`!team channel un-super-nom` pour créer une channel réservée à "
-                "ton équipe. \n\n"
-                f"Si tu as des suggestions pour que le bot permette à chacun d'avoir "
+                "ton équipe. `!team voice un-super-nom` permet "
+                "aussi de créer un salon vocal :wink: \n\n"
+                "Si tu as des suggestions pour que le bot permette à chacun d'avoir "
                 f"une meilleure expérience ici, envoie un petit message à {diego.mention} ;)"
             )
 
@@ -265,7 +266,7 @@ class TeamsCog(Cog, name="Teams"):
 
         if not channel_name:
             return (
-                "Tu dois mettre un nom d'équipe, par exemple "
+                "Tu dois mettre un nom de salon, par exemple "
                 "`!team channel un-super-nom`"
             )
 
@@ -302,7 +303,7 @@ class TeamsCog(Cog, name="Teams"):
 
         if not channel_name:
             return (
-                "Tu dois mettre un nom d'équipe, par exemple "
+                "Tu dois mettre un nom de salon, par exemple "
                 "`!team voice un-super-nom`"
             )
 

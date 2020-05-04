@@ -10,6 +10,7 @@ __all__ = [
     "ROUND_NAMES",
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
+    "BOT",
     "TOURNOIS",
     "EMBED_COLOR",
     "FRACTAL_URL",
@@ -30,7 +31,8 @@ if TOKEN is None:
     quit(1)
 
 GUILD = "690934836696973404"
-DIEGO = "Diego"  # Mon display name
+DIEGO = 430566197868625920  # Mon id
+BOT = 703305132300959754
 TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
 EMBED_COLOR = 0xFFA500
 FRACTAL_URL = "https://thefractal.space/img/{seed}.png?size=1500"
@@ -65,6 +67,8 @@ class Emoji:
     BIN = "🗑️"
     DICE = "🎲"
     CHECK = "✅"
+    PLUS_1 = "👍"
+    MINUS_1 = "👎"
 
 
 class File:
@@ -72,6 +76,7 @@ class File:
     TIRAGES = TOP_LEVEL / "data" / "tirages.yaml"
     TEAMS = TOP_LEVEL / "data" / "teams"
     JOKES = TOP_LEVEL / "data" / "jokes"
+    JOKES_V2 = TOP_LEVEL / "data" / "jokesv2"
 
 
 with open(File.TOP_LEVEL / "data" / "problems") as f:
