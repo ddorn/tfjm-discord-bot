@@ -1,10 +1,9 @@
 import asyncio
-import code
 from pprint import pprint
 
 import discord
 from discord import TextChannel, PermissionOverwrite
-from discord.ext.commands import command, has_role, Bot, Cog
+from discord.ext.commands import command, has_role, Bot, Cog, ExtensionNotLoaded
 from discord.utils import get
 from ptpython.repl import embed
 
@@ -12,6 +11,7 @@ from src.constants import *
 from src.core import CustomBot
 
 COGS_SHORTCUTS = {
+    "c": "src.constants",
     "d": "tirages",
     "e": "errors",
     "m": "misc",
@@ -19,8 +19,6 @@ COGS_SHORTCUTS = {
     "u": "src.utils",
     "v": "dev",
 }
-
-KeyboardInterrupt
 
 
 class DevCog(Cog, name="Dev tools"):
@@ -86,19 +84,18 @@ class DevCog(Cog, name="Dev tools"):
             await ctx.send(":tada: The bot was reloaded !")
             return
 
-        names = [name] if name else list(COGS_SHORTCUTS.values())
+        name = self.full_cog_name(name)
 
-        for name in names:
-
-            name = self.full_cog_name(name)
-
-            try:
-                self.bot.reload_extension(name)
-            except:
-                await ctx.send(f":grimacing: **{name}** n'a pas pu être rechargée.")
-                raise
-            else:
-                await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
+        try:
+            self.bot.reload_extension(name)
+        except ExtensionNotLoaded:
+            await ctx.invoke(self.load_cmd, name)
+            return
+        except:
+            await ctx.send(f":grimacing: **{name}** n'a pas pu être rechargée.")
+            raise
+        else:
+            await ctx.send(f":tada: L'extension **{name}** a bien été rechargée.")
 
     @command(name="load", aliases=["l"])
     @has_role(Role.DEV)
