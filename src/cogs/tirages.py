@@ -19,6 +19,8 @@ from src.errors import TfjmError, UnwantedCommand
 
 __all__ = ["Tirage", "TirageCog"]
 
+from src.utils import send_and_bin
+
 
 def in_passage_order(teams, round=0):
     return sorted(teams, key=lambda team: team.passage_order[round] or 0, reverse=True)
@@ -622,8 +624,39 @@ class TirageCog(Cog, name="Tirages"):
     @commands.command(
         name="dice", aliases=["de", "dé", "roll"], usage="n",
     )
-    async def dice(self, ctx: Context, n: int):
+    @send_and_bin
+    async def dice(self, ctx: Context, n):
         """Lance un dé à `n` faces."""
+
+        if not n:
+            raise TfjmError("Tu dois préciser un nombre de faces :wink:")
+
+        bases = {"0x": 16, "0b": 2, "0o": 8}
+
+        base = bases.get(n[:2], 10)
+        try:
+            n = int(n, base)
+        except ValueError:
+            try:
+                n = float(n)
+
+                if abs(n) == float("inf"):
+                    raise TfjmError("Alors là tu vises vraiment gros toi !")
+                if n != n:  # NaN
+                    raise TfjmError("Nan, ça je peux pas faire !")
+                if not n.is_integer():
+                    print(n)
+                    raise TfjmError(
+                        "Un dé avec des fractions de faces ? "
+                        "Si tu me donnes un patron, je le lancerai !"
+                    )
+
+                n = int(n)
+            except ValueError:
+                raise TfjmError(
+                    "Ton argument ne ressemble pas trop à un entier :thinking:"
+                )
+
         channel = ctx.channel.id
         if channel in self.tirages:
             await self.tirages[channel].dice(ctx, n)
@@ -632,8 +665,8 @@ class TirageCog(Cog, name="Tirages"):
                 raise TfjmError(f"Un dé sans faces ? Le concept m'intéresse...")
             if n < 1:
                 raise TfjmError(
-                    f"Je ne peux pas lancer un dé avec un "
-                    f"nombre négatif faces, désolé."
+                    "Je n'ai pas encore de dés en antimatière, "
+                    "désolé :man_shrugging:"
                 )
             if len(str(n)) > 1900:
                 raise TfjmError(
@@ -642,7 +675,7 @@ class TirageCog(Cog, name="Tirages"):
                 )
 
             dice = random.randint(1, n)
-            await ctx.send(f"{ctx.author.mention} : {Emoji.DICE} {dice}")
+            return f"{ctx.author.mention} : {Emoji.DICE} {dice}"
 
     @commands.command(
         name="random-problem",
