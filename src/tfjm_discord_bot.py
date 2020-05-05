@@ -1,12 +1,10 @@
 #!/bin/python
 
 from src.constants import *
-
+from src.core import CustomBot
 
 # We allow "! " to catch people that put a space in their commands.
 # It must be in first otherwise "!" always match first and the space is not recognised
-from src.core import CustomBot
-
 bot = CustomBot(("! ", "!"))
 
 # Global variable to hold the tirages.

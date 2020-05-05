@@ -2,8 +2,15 @@ import asyncio
 from pprint import pprint
 
 import discord
-from discord import TextChannel, PermissionOverwrite
-from discord.ext.commands import command, has_role, Bot, Cog, ExtensionNotLoaded
+from discord import TextChannel, PermissionOverwrite, Message
+from discord.ext.commands import (
+    command,
+    has_role,
+    Bot,
+    Cog,
+    ExtensionNotLoaded,
+    Context,
+)
 from discord.utils import get
 from ptpython.repl import embed
 
@@ -181,6 +188,19 @@ class DevCog(Cog, name="Dev tools"):
         """Envoie un message."""
         await ctx.message.delete()
         await ctx.send(" ".join(msg))
+
+    @command(name="del")
+    @has_role(Role.CNO)
+    async def del_range_cmd(self, ctx: Context, id1: Message, id2: Message):
+        """
+        (cno) Supprime les messages entre les deux IDs en argument.
+        """
+        channel: TextChannel = id1.channel
+        to_delete = [
+            message async for message in channel.history(before=id1, after=id2)
+        ] + [id1, id2]
+        await channel.delete_messages(to_delete)
+        await ctx.message.delete()
 
 
 def setup(bot: CustomBot):
