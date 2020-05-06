@@ -676,7 +676,7 @@ class TirageCog(Cog, name="Tirages"):
 
     @draw_group.command(name="dump")
     @commands.has_role(Role.DEV)
-    async def dump_cmd(self, ctx, tirage_id: int, round=0):
+    async def dump_cmd(self, ctx, tirage_id: int, poule="A", round: int = 1):
         """Affiche un résumé succint d'un tirage."""
         tirages = self.get_tirages()
 
@@ -691,8 +691,14 @@ class TirageCog(Cog, name="Tirages"):
                 f"Les identifiants valides sont visibles avec `!draw show all`"
             )
         else:
-            msg = ";".join(
-                x for t in tirage.teams for x in (t.name, t.accepted_problems[round][0])
+            poule = get(tirage.poules, poule=poule, rnd=round - 1)
+            msg = f"{round};" + ";".join(
+                x
+                for t in tirage.poules[poule]
+                for x in (
+                    tirage.teams[t].name,
+                    tirage.teams[t].accepted_problems[round - 1][0],
+                )
             )
 
             await ctx.send(msg)
