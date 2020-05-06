@@ -3,12 +3,14 @@ import random
 import sys
 import traceback
 from functools import wraps
+from pathlib import Path
 from pprint import pprint
 
 from io import StringIO
 from typing import Type, Union, Dict, List
 
 import discord
+import yaml
 
 from src.constants import *
 
@@ -70,7 +72,9 @@ class Team:
 # """
 
 
-class Poule:
+class Poule(yaml.YAMLObject):
+    yaml_tag = "Poule"
+
     def __init__(self, poule, rnd):
         self.poule = poule
         self.rnd = rnd
@@ -79,15 +83,17 @@ class Poule:
         return f"{self.poule}{self.rnd + 1}"
 
 
-class BaseTirage:
+class BaseTirage(yaml.YAMLObject):
+    yaml_tag = "Tirage"
+
     def __init__(self, *teams: discord.Role, fmt=(3, 3)):
-        assert sum(fmt) == len(teams)
+        assert sum(fmt) == len(teams), "Different number of teams and format"
 
         self.teams: Dict[str, Team] = {t.name: Team(t) for t in teams}
         self.format = fmt
         self.queue = asyncio.Queue()
         self.poules: Dict[Poule, List[str]] = {}
-        """A mapping between the poule name and the list of teams in this poule."""
+        """A mapping between the poule and the list of teams in this poule."""
 
     async def event(self, event: Event):
         event.set()
@@ -153,8 +159,9 @@ class BaseTirage:
             while None in dices.values():
                 event = await self.next(int)
 
-                # TODO: avoid KeyError
-                if dices[event.team] is None:
+                if event.team not in dices:
+                    await self.warn_wrong_team(None, event.team)
+                elif dices[event.team] is None:
                     dices[event.team] = event.value
                     await self.info_dice(event.team, event.value)
                 else:
