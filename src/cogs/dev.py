@@ -18,6 +18,7 @@ from src.constants import *
 from src.core import CustomBot
 
 COGS_SHORTCUTS = {
+    "bt": "src.base_tirage",
     "c": "src.constants",
     "d": "tirages",
     "e": "errors",

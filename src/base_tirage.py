@@ -1,5 +1,8 @@
 import asyncio
 import random
+import sys
+import traceback
+from functools import wraps
 from pprint import pprint
 
 from io import StringIO
@@ -57,12 +60,14 @@ class Team:
 
         return "\n".join(f"`{n.rjust(width)}`: {v}" for n, v in info.items())
 
-        return f""" - Accepté: {self.accepted_problems[round]}
- - Refusés: {", ".join(p[0] for p in self.rejected[round]) if self.rejected[round] else "aucun"}
- - Coefficient: {self.coeff(round)}
- - Ordre au tirage: {self.tirage_order[round]}
- - Ordre de passage: {self.passage_order[round]}
-"""
+
+#
+#         return f""" - Accepté: {self.accepted_problems[round]}
+#  - Refusés: {", ".join(p[0] for p in self.rejected[round]) if self.rejected[round] else "aucun"}
+#  - Coefficient: {self.coeff(round)}
+#  - Ordre au tirage: {self.tirage_order[round]}
+#  - Ordre de passage: {self.passage_order[round]}
+# """
 
 
 class Poule:
@@ -110,6 +115,9 @@ class BaseTirage:
         ]
         return await self.event(Event(trigram, random.choice(available)))
 
+    async def accept(self, trigram, yes: bool):
+        return await self.event(Event(trigram, yes))
+
     async def next(self, typ, team=None):
         while True:
             event = await self.queue.get()
@@ -148,6 +156,7 @@ class BaseTirage:
                 # TODO: avoid KeyError
                 if dices[event.team] is None:
                     dices[event.team] = event.value
+                    await self.info_dice(event.team, event.value)
                 else:
                     await self.warn_twice(int)
 
@@ -173,6 +182,9 @@ class BaseTirage:
         return poules
 
     async def draw_poule(self, poule):
+
+        await self.start_draw_poule(poule)
+
         # Trigrams in draw order
         trigrams = await self.draw_order(poule)
 
@@ -184,25 +196,27 @@ class BaseTirage:
             if team.accepted_problems[poule.rnd] is not None:
                 # The team already accepted a problem
                 current += 1
+                current %= len(teams)
                 continue
 
             # Choose problem
             await self.start_select_pb(team)
-            event = await self.next(str, team.name)
+            pevent = await self.next(str, team.name)
             # TODO: Add check for already selected / taken by someone else
             # This is not a bug for now, since it cannot happen yet
-            await self.info_draw_pb(team, event.value, rnd)
+            await self.info_draw_pb(team, pevent.value, poule.rnd)
 
             # Accept it
             accept = await self.next(bool, team.name)
-            if accept:
-                team.accepted_problems[poule.rnd] = event.value
-                await self.info_accepted(team, event.value)
+            if accept.value:
+                team.accepted_problems[poule.rnd] = pevent.value
+                await self.info_accepted(team, pevent.value)
             else:
-                await self.info_rejected(team, event.value, rnd=poule.rnd)
-                team.rejected[poule.rnd].add(event.value)
+                await self.info_rejected(team, pevent.value, rnd=poule.rnd)
+                team.rejected[poule.rnd].add(pevent.value)
 
             current += 1
+            current %= len(teams)
 
         await self.annonce_poule(poule)
 
@@ -212,7 +226,7 @@ class BaseTirage:
         teams = self.poules[poule]
         dices = await self.get_dices(teams)
 
-        order = sorted(self.teams, key=lambda t: dices[t], reverse=True)
+        order = sorted(teams, key=lambda t: dices[t], reverse=True)
 
         await self.annonce_draw_order(order)
         return order
@@ -231,6 +245,9 @@ class BaseTirage:
 
     async def start_make_poule(self, rnd):
         """Called when it starts drawing the poules for round `rnd`"""
+
+    async def start_draw_poule(self, poule):
+        """Called when we start a poule."""
 
     async def start_draw_order(self, poule):
         """Called when we start to draw the order."""
@@ -253,6 +270,9 @@ class BaseTirage:
     async def info_finish(self):
         """Called when the tirage has ended."""
 
+    async def info_dice(self, team, dice):
+        """Called on a dice roll."""
+
     async def info_draw_pb(self, team, pb, rnd):
         """Called when a team draws a problem."""
 
@@ -262,3 +282,7 @@ class BaseTirage:
     async def info_rejected(self, team, pb, rnd):
         """Called when a team rejects a problem,
         before it is added to the rejected set."""
+
+
+def setup(_):
+    pass

@@ -2,6 +2,8 @@
 
 import asyncio
 import random
+import sys
+import traceback
 from collections import defaultdict, namedtuple
 from dataclasses import dataclass
 from functools import wraps
@@ -15,7 +17,7 @@ from discord.ext import commands
 from discord.ext.commands import group, Cog, Context
 from discord.utils import get
 
-from src.base_tirage import BaseTirage
+from src.base_tirage import BaseTirage, Event
 from src.constants import *
 from src.core import CustomBot
 from src.errors import TfjmError, UnwantedCommand
@@ -34,7 +36,7 @@ Record = namedtuple("Record", ["name", "pb", "penalite"])
 
 def delete_and_pm(f):
     @wraps(f)
-    def wrapper(self, *args, **kwargs):
+    async def wrapper(self, *args, **kwargs):
         await self.ctx.message.delete()
         await self.ctx.author.send(
             "J'ai supprimé ton message:\n> "
@@ -47,6 +49,8 @@ def delete_and_pm(f):
         if msg:
             await self.ctx.author.send(f"Raison: {msg}")
 
+    return wrapper
+
 
 def send_all(f):
     @wraps(f)
@@ -57,11 +61,32 @@ def send_all(f):
     return wrapper
 
 
+def safe(f):
+    @wraps(f)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await f(*args, **kwargs)
+        except Exception as e:
+            traceback.print_tb(e.__traceback__, file=sys.stderr)
+            print(e)
+
+    return wrapper
+
+
 class DiscordTirage(BaseTirage):
     def __init__(self, ctx, *teams, fmt):
         super(DiscordTirage, self).__init__(*teams, fmt=fmt)
         self.ctx = ctx
         self.captain_mention = get(ctx.guild.roles, name=Role.CAPTAIN).mention
+
+    def team_for(self, author):
+        for team in self.teams:
+            if get(author.roles, name=team):
+                return team
+        return None
+
+    def mention(self, trigram):
+        return get(self.ctx.guild.roles, name=trigram).mention
 
     def records(self, teams, rnd):
         """Get the strings needed for show the tirage in a list of Records"""
@@ -75,6 +100,36 @@ class DiscordTirage(BaseTirage):
             for team in teams
         ]
 
+    async def dice(self, ctx, n):
+        self.ctx = ctx
+        trigram = self.team_for(ctx.author)
+
+        if trigram is None:
+            await self.warn_wrong_team(None, None)
+        elif n == 100:
+            await super().dice(trigram)
+        else:
+            await self.warn_unwanted(int, int)
+
+    async def rproblem(self, ctx):
+        self.ctx = ctx
+        trigram = self.team_for(ctx.author)
+
+        if trigram is None:
+            await self.warn_wrong_team(None, None)
+        else:
+            await super().rproblem(trigram)
+
+    async def accept(self, ctx, yes):
+        self.ctx = ctx
+        trigram = self.team_for(ctx.author)
+
+        if trigram is None:
+            await self.warn_wrong_team(None, None)
+        else:
+            await super().accept(trigram, yes)
+
+    @safe
     @delete_and_pm
     async def warn_unwanted(self, wanted: Type, got: Type):
 
@@ -91,6 +146,8 @@ class DiscordTirage(BaseTirage):
             else "Halte là ! Ce serait bien de tirer un problème d'abord... "
             "et peut-être qu'il te plaira :) ",
             (bool, int): "Il tirer un dé avec `!dice 100` d'abord.",
+            (int, int): "Il faut lancer un dé à 100 faces.",
+            (str, str): f"'{got}' n'est pas un problème valide.",
         }
 
         reason = texts.get((type(got), wanted))
@@ -100,10 +157,12 @@ class DiscordTirage(BaseTirage):
             reason = "Je sais pas, le code ne devrait pas venir ici..."
         return reason
 
+    @safe
     @delete_and_pm
     async def warn_wrong_team(self, expected, got):
         return "ce n'était pas à ton tour."
 
+    @safe
     async def warn_colisions(self, collisions: List[str]):
         await self.ctx.send(
             f"Les equipes {french_join(collisions)} ont fait le même résultat "
@@ -111,6 +170,7 @@ class DiscordTirage(BaseTirage):
             "Le nouveau lancer effacera l'ancien."
         )
 
+    @safe
     @delete_and_pm
     async def warn_twice(self, typ: Type):
 
@@ -120,6 +180,7 @@ class DiscordTirage(BaseTirage):
         print("Weird, DiscordTirage.warn_twice was called with", typ)
         return "Je sais pas, le code ne devrait pas venir ici..."
 
+    @safe
     @send_all
     async def start_make_poule(self, rnd):
         if rnd == 0:
@@ -135,50 +196,82 @@ class DiscordTirage(BaseTirage):
                 f"afin de déterminer les poules du second tour."
             )
 
-    async def start_draw_order(self, poule):
-        print(poule)
+    @safe
+    @send_all
+    async def start_draw_poule(self, poule):
+        yield (
+            f"Nous allons commencer le tirage pour la poule **{poule}** entre les "
+            f"équipes {french_join('**%s**' %p for p in self.poules[poule])}. Les autres équipes peuvent "
+            f"quitter le salon si elles le souhaitent et revenir quand elles seront mentionnées."
+        )
 
+    @safe
+    @send_all
+    async def start_draw_order(self, poule):
+        mentions = [self.mention(tri) for tri in self.poules[poule]]
+        yield (
+            f"Les capitaines de {french_join(mentions)}, vous pouvez à nouveau lancer un dé 100, "
+            f"qui déterminera l'ordre de tirage des problèmes. Le plus grand lancer tirera en premier "
+            f"les problèmes."
+        )
+
+    @safe
     async def start_select_pb(self, team):
         await self.ctx.send(f"C'est au tour de {team.mention} de choisir un problème.")
 
+    @safe
+    @send_all
     async def annonce_poules(self, poules):
-        print(poules)
+        first = "\n".join(
+            f"{p}: {french_join(t)}" for p, t in poules.items() if p.rnd == 0
+        )
+        second = "\n".join(
+            f"{p}: {french_join(t)}" for p, t in poules.items() if p.rnd == 1
+        )
+        yield (
+            f"Les poules sont donc, pour le premier tour :"
+            f"```{first}```\n"
+            f"Et pour le second tour :"
+            f"```{second}```"
+        )
 
+    @safe
     @send_all
     async def annonce_draw_order(self, order):
-        order_str = "\n ".join(f"{i}) {tri}" for i, tri in enumerate(order))
-        yield "L'ordre de tirage des problèmes pour ce tour est donc: \n" + order_str
+        order_str = "\n".join(f"{i+1}) {tri}" for i, tri in enumerate(order))
+        yield f"L'ordre de tirage des problèmes pour ce tour est donc: ```{order_str}```"
 
+    @safe
     async def annonce_poule(self, poule):
         teams = [self.teams[tri] for tri in self.poules[poule]]
 
         if len(teams) == 3:
             table = """```
-            +-----+---------+---------+---------+
-            |     | Phase 1 | Phase 2 | Phase 3 |
-            |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
-            +-----+---------+---------+---------+
-            | {0.name} |   Déf   |   Rap   |   Opp   |
-            +-----+---------+---------+---------+
-            | {1.name} |   Opp   |   Déf   |   Rap   |
-            +-----+---------+---------+---------+
-            | {2.name} |   Rap   |   Opp   |   Déf   |
-            +-----+---------+---------+---------+
++-----+---------+---------+---------+
+|     | Phase 1 | Phase 2 | Phase 3 |
+|     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
++-----+---------+---------+---------+
+| {0.name} |   Déf   |   Rap   |   Opp   |
++-----+---------+---------+---------+
+| {1.name} |   Opp   |   Déf   |   Rap   |
++-----+---------+---------+---------+
+| {2.name} |   Rap   |   Opp   |   Déf   |
++-----+---------+---------+---------+
         ```"""
         else:
             table = """```
-            +-----+---------+---------+---------+---------+
-            |     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
-            |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |   Pb {3.pb}  |
-            +-----+---------+---------+---------+---------+
-            | {0.name} |   Déf   |         |   Rap   |   Opp   |
-            +-----+---------+---------+---------+---------+
-            | {1.name} |   Opp   |   Déf   |         |   Rap   |
-            +-----+---------+---------+---------+---------+
-            | {2.name} |   Rap   |   Opp   |   Déf   |         |
-            +-----+---------+---------+---------+---------+
-            | {3.name} |         |   Rap   |   Opp   |   Déf   |
-            +-----+---------+---------+---------+---------+
++-----+---------+---------+---------+---------+
+|     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
+|     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |   Pb {3.pb}  |
++-----+---------+---------+---------+---------+
+| {0.name} |   Déf   |         |   Rap   |   Opp   |
++-----+---------+---------+---------+---------+
+| {1.name} |   Opp   |   Déf   |         |   Rap   |
++-----+---------+---------+---------+---------+
+| {2.name} |   Rap   |   Opp   |   Déf   |         |
++-----+---------+---------+---------+---------+
+| {3.name} |         |   Rap   |   Opp   |   Déf   |
++-----+---------+---------+---------+---------+
         ```"""
 
         embed = discord.Embed(
@@ -205,6 +298,7 @@ class DiscordTirage(BaseTirage):
 
         await self.ctx.send(embed=embed)
 
+    @safe
     @send_all
     async def info_start(self):
         yield (
@@ -225,6 +319,7 @@ class DiscordTirage(BaseTirage):
             "l'ordre de tirage pour le tour et les problèmes."
         )
 
+    @safe
     @send_all
     async def info_finish(self):
         yield "Le tirage est fini, merci à tout le monde !"
@@ -235,9 +330,19 @@ class DiscordTirage(BaseTirage):
         # TODO: Save it
         # TODO: make them available with the api
 
+    @safe
+    @send_all
+    async def info_dice(self, team, dice):
+        yield f"L'équipe {team} a lancé un... {dice} :game_die:"
+
+    @safe
+    @send_all
     async def info_draw_pb(self, team, pb, rnd):
+
+        yield (f"L'équipe {self.mention(team.name)} a tiré... **{pb}**")
+
         if pb in team.rejected[rnd]:
-            await self.ctx.send(
+            yield (
                 f"Vous avez déjà refusé **{pb}**, "
                 f"vous pouvez le refuser à nouveau (`!non`) et "
                 f"tirer immédiatement un nouveau problème "
@@ -245,19 +350,20 @@ class DiscordTirage(BaseTirage):
             )
         else:
             if len(team.rejected[rnd]) >= MAX_REFUSE:
-                await self.ctx.send(
+                yield (
                     f"Vous pouvez accepter ou refuser **{pb}** "
                     f"mais si vous choisissez de le refuser, il y "
                     f"aura une pénalité de 0.5 sur le multiplicateur du "
                     f"défenseur."
                 )
             else:
-                await self.ctx.send(
-                    f"Vous pouvez accepter (`!oui`) ou refuser (`!non`) **{pb}**. "
+                yield (
+                    f"Vous pouvez l'accepter (`!oui`) ou le refuser (`!non`). "
                     f"Il reste {MAX_REFUSE - len(team.rejected[rnd])} refus sans pénalité "
                     f"pour {team.mention}."
                 )
 
+    @safe
     async def info_accepted(self, team, pb):
         await self.ctx.send(
             f"L'équipe {team.mention} a accepté "
@@ -265,6 +371,7 @@ class DiscordTirage(BaseTirage):
             f"ne peuvent plus l'accepter."
         )
 
+    @safe
     async def info_rejected(self, team, pb, rnd):
         msg = f"{team.mention} a refusé **{pb}** "
         if pb in team.rejected[rnd]:
@@ -274,152 +381,7 @@ class DiscordTirage(BaseTirage):
         await self.ctx.send(msg)
 
 
-class Tirage(yaml.YAMLObject):
-    yaml_tag = "Tirage"
-
-    def __init__(self, ctx, channel, teams):
-        assert len(teams) in (3, 4)
-
-        self.channel: int = channel
-        self.teams = [Team(team) for team in teams]
-        self.phase = TirageOrderPhase(self, round=0)
-
-    async def update_phase(self, ctx):
-        if self.phase.finished():
-            next_class = await self.phase.next(ctx)
-
-            if next_class is None:
-                await self.end(ctx)
-            else:
-                # Continue on the same round.
-                # If a Phase wants to change the round
-                # it needs to change its own round.
-                self.phase = next_class(self, self.phase.round)
-                await self.phase.start(ctx)
-
-    async def end(self, ctx):
-        self.phase = None
-        if False:
-            # Allow everyone to send messages again
-            send = discord.PermissionOverwrite()  # reset
-            await ctx.channel.edit(overwrites={ctx.guild.default_role: send})
-
-        tl = {}
-        if File.TIRAGES.exists():
-            with open(File.TIRAGES) as f:
-                tl = yaml.load(f)
-        else:
-            File.TIRAGES.touch()
-
-        key = max(0, *tl.keys()) + 1
-        tl[key] = self
-        with open(File.TIRAGES, "w") as f:
-            yaml.dump(tl, f)
-
-        await ctx.send(
-            f"A tout moment, ce rapport peut " f"être envoyé avec `!draw show {key}`"
-        )
-
-        from src.tfjm_discord_bot import tirages
-
-        if self.channel in tirages:
-            del tirages[self.channel]
-
-    async def show_tex(self, ctx):
-        if len(self.teams) == 3:
-            table = r"""
-\begin{{table}}[]
-\begin{{tabular}}{{|c|c|c|c|}}
-\hline
-          & Phase 1 - {0.pb} & Phase 2 - {1.pb} & Phase {2.pb} \\\\ \hline
- {0.name} & Déf & Rap & Opp \\ \hline
- {1.name} & Opp & Déf & Rap \\ \hline
- {2.name} & Rap & Opp & Déf \\ \hline
-\end{{tabular}}
-\end{{table}}
-"""
-        else:
-            table = r"""
-            \begin{{table}}[]
-            \begin{{tabular}}{{|c|c|c|c|c|}}
-            \hline
-                      & Phase 1 - {0.pb} & Phase 2 - {1.pb} & Phase 3 - {2.pb} & Phase 4 - {3.pb} \\\\ \hline
-             {0.name} & Déf &     & Rap & Opp \\ \hline
-             {1.name} & Opp & Déf &     & Rap \\ \hline
-             {2.name} & Rap & Opp & Déf &     \\ \hline
-             {3.name} &     & Rap & Opp & Déf \\ \hline
-            \end{{tabular}}
-            \end{{table}}
-            """
-        msg = ",tex "
-        for i in (0, 1):
-            msg += rf"\section{{ {ROUND_NAMES[i].capitalize()} }}"
-            msg += table.format(*self.records(i))
-        await ctx.send(msg)
-
-
-class Phase:
-    ...
-
-
-class OrderPhase(Phase):
-    def __init__(self, tirage, round, name, order_name, reverse=False):
-        super().__init__(tirage, round)
-        self.name = name
-        self.reverse = reverse
-        self.order_name = order_name
-
-    def order_for(self, team):
-        return getattr(team, self.order_name)[self.round]
-
-    def set_order_for(self, team, order):
-        getattr(team, self.order_name)[self.round] = order
-
-    async def dice(self, ctx, author, dice):
-        team = self.team_for(author)
-
-        if self.order_for(team) is None:
-            self.set_order_for(team, dice)
-            await ctx.send(f"L'équipe {team.mention} a obtenu... **{dice}**")
-        else:
-            raise UnwantedCommand("tu as déjà lancé un dé !")
-
-    def finished(self) -> bool:
-        return all(self.order_for(team) is not None for team in self.teams)
-
-    async def next(self, ctx) -> "Type[Phase]":
-        orders = [self.order_for(team) for team in self.teams]
-        if len(set(orders)) == len(orders):
-            # All dice are different: good
-            self.teams.sort(key=self.order_for, reverse=self.reverse)
-            await ctx.send(
-                f"L'ordre {self.name} pour ce tour est donc :\n"
-                " - "
-                + "\n - ".join(
-                    f"{team.mention} ({self.order_for(team)})" for team in self.teams
-                )
-            )
-            return self.NEXT
-        else:
-            # Find dice that are the same
-            count = defaultdict(list)
-            for team in self.teams:
-                count[self.order_for(team)].append(team)
-
-            re_do = []
-            for teams in count.values():
-                if len(teams) > 1:
-                    re_do.extend(teams)
-
-            teams_str = ", ".join(team.mention for team in re_do)
-
-            for team in re_do:
-                self.set_order_for(team, None)
-            # We need to do this phase again.
-            return self.__class__
-
-
-class TiragePhase(Phase):
+class TiragePhase:
     """The phase where captains accept or refuse random problems."""
 
     def __init__(self, tirage, round=0):
@@ -654,6 +616,15 @@ class TirageCog(Cog, name="Tirages"):
             dice = random.randint(1, n)
             return f"{ctx.author.mention} : {Emoji.DICE} {dice}"
 
+    @commands.command(name="dice-all", aliases=["da"], hidden=True)
+    @commands.has_role(Role.DEV)
+    async def dice_all_cmd(self, ctx, *teams):
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            for t in teams:
+                d = random.randint(1, 100)
+                await self.tirages[channel].event(Event(t, d))
+
     @commands.command(
         name="random-problem",
         aliases=["rp", "problème-aléatoire", "probleme-aleatoire", "pa"],
@@ -663,7 +634,7 @@ class TirageCog(Cog, name="Tirages"):
 
         channel = ctx.channel.id
         if channel in self.tirages:
-            await self.tirages[channel].choose_problem(ctx)
+            await self.tirages[channel].rproblem(ctx)
         else:
             problem = random.choice(PROBLEMS)
             await ctx.send(f"Le problème tiré est... **{problem}**")
@@ -712,7 +683,7 @@ class TirageCog(Cog, name="Tirages"):
         name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
     )
     @commands.has_any_role(*Role.ORGAS)
-    async def start(self, ctx: Context, *teams: discord.Role):
+    async def start(self, ctx: Context, fmt, *teams: discord.Role):
         """
         (orga) Commence un tirage avec 3 ou 4 équipes.
 
@@ -730,28 +701,25 @@ class TirageCog(Cog, name="Tirages"):
                 "il est possible d'en commencer un autre sur une autre channel."
             )
 
-        if len(teams) not in (3, 4):
+        try:
+            fmt = list(map(int, fmt.split("+")))
+        except ValueError:
             raise TfjmError(
-                "Il faut 3 ou 4 équipes pour un tirage. "
-                "Exemple: `!draw start @AAA @BBB @CCC`"
+                "Le premier argument doit être le format du tournoi, "
+                "par exemple `3+3` pour deux poules à trois équipes"
             )
+
+        if not set(fmt).issubset({3, 4}):
+            raise TfjmError("Seuls les poules à 3 ou 4 équipes sont suportées.")
 
         # Here all data should be valid
 
-        # Prevent everyone from writing except Capitaines, Orga, CNO, Benevole
-        if False:
-            read = discord.PermissionOverwrite(send_messages=False)
-            send = discord.PermissionOverwrite(send_messages=True)
-            r = lambda role_name: get(ctx.guild.roles, name=role_name)
-            overwrites = {
-                ctx.guild.default_role: read,
-                r(Role.CAPTAIN): send,
-                r(Role.BENEVOLE): send,
-            }
-            await channel.edit(overwrites=overwrites)
+        self.tirages[channel_id] = DiscordTirage(ctx, *teams, fmt=fmt)
+        await self.tirages[channel_id].run()
 
-        self.tirages[channel_id] = Tirage(ctx, channel_id, teams)
-        await self.tirages[channel_id].phase.start(ctx)
+        if self.tirages[channel_id]:
+            # Check if aborted in an other way
+            del self.tirages[channel_id]
 
     @draw_group.command(name="abort")
     @commands.has_any_role(*Role.ORGAS)
@@ -768,32 +736,32 @@ class TirageCog(Cog, name="Tirages"):
         if channel_id in self.tirages:
             print(self.tirages, channel_id)
             print(self.tirages[channel_id])
-
-            await self.tirages[channel_id].end(ctx)
+            del self.tirages[channel_id]
             await ctx.send("Le tirage est annulé.")
         else:
             await ctx.send("Il n'y a pas de tirage en cours.")
 
-    @draw_group.command(name="skip", aliases=["s"])
-    @commands.has_role(Role.DEV)
-    async def draw_skip(self, ctx, *teams: discord.Role):
-        """(dev) Passe certaines phases du tirage."""
-        channel = ctx.channel.id
-        self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
+    #
+    # @draw_group.command(name="skip", aliases=["s"])
+    # @commands.has_role(Role.DEV)
+    # async def draw_skip(self, ctx, *teams: discord.Role):
+    #     """(dev) Passe certaines phases du tirage."""
+    #     channel = ctx.channel.id
+    #     self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
+    #
+    #     tirage.phase = TiragePhase(tirage, round=1)
+    #     for i, team in enumerate(tirage.teams):
+    #         team.tirage_order = [i + 1, i + 1]
+    #         team.passage_order = [i + 1, i + 1]
+    #         team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
+    #     tirage.teams[0].rejected = [{PROBLEMS[3]}, set(PROBLEMS[4:8])]
+    #     tirage.teams[1].rejected = [{PROBLEMS[7]}, set()]
+    #
+    #     await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
+    #     await tirage.phase.start(ctx)
+    #     await tirage.update_phase(ctx)
 
-        tirage.phase = TiragePhase(tirage, round=1)
-        for i, team in enumerate(tirage.teams):
-            team.tirage_order = [i + 1, i + 1]
-            team.passage_order = [i + 1, i + 1]
-            team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
-        tirage.teams[0].rejected = [{PROBLEMS[3]}, set(PROBLEMS[4:8])]
-        tirage.teams[1].rejected = [{PROBLEMS[7]}, set()]
-
-        await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
-        await tirage.phase.start(ctx)
-        await tirage.update_phase(ctx)
-
-    def get_tirages(self) -> Dict[int, Tirage]:
+    def get_tirages(self) -> Dict[int, BaseTirage]:
         if not File.TIRAGES.exists():
             return {}
 
@@ -812,6 +780,7 @@ class TirageCog(Cog, name="Tirages"):
             `!draw show 42` - Affiche le tirage n°42
         """
 
+        return
         tirages = self.get_tirages()
 
         if not tirages:
