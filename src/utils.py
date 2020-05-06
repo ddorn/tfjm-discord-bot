@@ -5,6 +5,7 @@ from discord.ext.commands import Bot
 
 
 def french_join(l):
+    l = list(l)
     start = ", ".join(l[:-1])
     return f"{start} et {l[-1]}"
 
