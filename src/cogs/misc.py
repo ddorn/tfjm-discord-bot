@@ -119,7 +119,7 @@ class MiscCog(Cog, name="Divers"):
         with open(File.JOKES_V2, "w") as f:
             yaml.safe_dump_all(jokes, f)
 
-    @group(name="joke", hidden=True, invoke_without_command=True)
+    @group(name="joke", invoke_without_command=True)
     async def joke(self, ctx):
         await ctx.message.delete()
 
@@ -133,9 +133,10 @@ class MiscCog(Cog, name="Divers"):
         await message.add_reaction(Emoji.MINUS_1)
         await self.wait_for_joke_reactions(joke_id, message)
 
-    @joke.command(name="new", hidden=True)
+    @joke.command(name="new")
     @send_and_bin
     async def new_joke(self, ctx: Context):
+        """Ajoute une blague pour le concours de blague."""
         author: discord.Member = ctx.author
         message: discord.Message = ctx.message
 
@@ -231,7 +232,7 @@ class MiscCog(Cog, name="Divers"):
         return await ctx.send(embed=embed)
 
     async def send_command_help(self, ctx, args):
-        name = " ".join(args)
+        name = " ".join(args).strip("!")
         comm: Command = self.bot.get_command(name)
         if comm is None:
             return await ctx.send(
