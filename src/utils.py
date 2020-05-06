@@ -4,6 +4,11 @@ import psutil
 from discord.ext.commands import Bot
 
 
+def french_join(l):
+    start = ", ".join(l[:-1])
+    return f"{start} et {l[-1]}"
+
+
 def has_role(member, role: str):
     """Return whether the member has a role with this name."""
 

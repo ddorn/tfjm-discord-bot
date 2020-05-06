@@ -3,9 +3,11 @@
 import asyncio
 import random
 from collections import defaultdict, namedtuple
+from dataclasses import dataclass
+from functools import wraps
 from io import StringIO
 from pprint import pprint
-from typing import Type, Dict
+from typing import Type, Dict, Union, Optional, List
 
 import discord
 import yaml
@@ -13,13 +15,14 @@ from discord.ext import commands
 from discord.ext.commands import group, Cog, Context
 from discord.utils import get
 
+from src.base_tirage import BaseTirage
 from src.constants import *
 from src.core import CustomBot
 from src.errors import TfjmError, UnwantedCommand
 
 __all__ = ["Tirage", "TirageCog"]
 
-from src.utils import send_and_bin
+from src.utils import send_and_bin, french_join
 
 
 def in_passage_order(teams, round=0):
@@ -29,54 +32,246 @@ def in_passage_order(teams, round=0):
 Record = namedtuple("Record", ["name", "pb", "penalite"])
 
 
-class Team(yaml.YAMLObject):
-    yaml_tag = "Team"
+def delete_and_pm(f):
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        await self.ctx.message.delete()
+        await self.ctx.author.send(
+            "J'ai supprimé ton message:\n> "
+            + self.ctx.message.clean_content
+            + "\nC'est pas grave, c'est juste pour ne pas encombrer "
+            "le chat lors du tirage."
+        )
 
-    def __init__(self, ctx, team_role):
-        self.name = team_role.name
-        self.mention = team_role.mention
-        self.tirage_order = [None, None]
-        self.passage_order = [None, None]
+        msg = await f(self, *args, **kwargs)
+        if msg:
+            await self.ctx.author.send(f"Raison: {msg}")
 
-        self.accepted_problems = [None, None]
-        self.drawn_problem = None  # Waiting to be accepted or refused
-        self.rejected = [set(), set()]
 
-    def __str__(self):
-        s = StringIO()
-        pprint(self.__dict__, stream=s)
-        s.seek(0)
-        return s.read()
+def send_all(f):
+    @wraps(f)
+    async def wrapper(self, *args, **kwargs):
+        async for msg in f(self, *args, **kwargs):
+            await self.ctx.send(msg)
 
-    __repr__ = __str__
+    return wrapper
 
-    def coeff(self, round):
-        if len(self.rejected[round]) <= MAX_REFUSE:
-            return 2
-        else:
-            return 2 - 0.5 * (len(self.rejected[round]) - MAX_REFUSE)
 
-    def details(self, round):
+class DiscordTirage(BaseTirage):
+    def __init__(self, ctx, *teams, fmt):
+        super(DiscordTirage, self).__init__(*teams, fmt=fmt)
+        self.ctx = ctx
+        self.captain_mention = get(ctx.guild.roles, name=Role.CAPTAIN).mention
 
-        info = {
-            # "Accepté": self.accepted_problems[round],
-            "Refusés": ", ".join(p[0] for p in self.rejected[round])
-            if self.rejected[round]
-            else "aucun",
-            "Coefficient": self.coeff(round),
-            # "Ordre passage": self.passage_order[round],
+    def records(self, teams, rnd):
+        """Get the strings needed for show the tirage in a list of Records"""
+
+        return [
+            Record(
+                team.name,
+                (team.accepted_problems[rnd] or "- None")[0],
+                f"k = {team.coeff(rnd)} ",
+            )
+            for team in teams
+        ]
+
+    @delete_and_pm
+    async def warn_unwanted(self, wanted: Type, got: Type):
+
+        texts = {
+            (int, str): "Il faut tirer un problème avec `!rp` et pas un dé.",
+            (int, bool): "Il faut accepter `!oui` ou refuser `!non` "
+            "le problème d'abord.",
+            (str, int): "Tu dois lancer un dé (`!dice 100`), pas choisir un problème.",
+            (str, bool): "Il faut accepter `!oui` ou refuser `!non` le "
+            "problème avant d'en choisir un autre",
+            (bool, str): "Tu es bien optimiste pour vouloir accepter un problème "
+            "avant de l'avoir tiré !"
+            if got
+            else "Halte là ! Ce serait bien de tirer un problème d'abord... "
+            "et peut-être qu'il te plaira :) ",
+            (bool, int): "Il tirer un dé avec `!dice 100` d'abord.",
         }
 
-        width = max(map(len, info))
+        reason = texts.get((type(got), wanted))
 
-        return "\n".join(f"`{n.rjust(width)}`: {v}" for n, v in info.items())
+        if reason is None:
+            print(f"Weird, arguments for warn_unwanted were {wanted} and {got}")
+            reason = "Je sais pas, le code ne devrait pas venir ici..."
+        return reason
 
-        return f""" - Accepté: {self.accepted_problems[round]}
- - Refusés: {", ".join(p[0] for p in self.rejected[round]) if self.rejected[round] else "aucun"}
- - Coefficient: {self.coeff(round)}
- - Ordre au tirage: {self.tirage_order[round]}
- - Ordre de passage: {self.passage_order[round]}
-"""
+    @delete_and_pm
+    async def warn_wrong_team(self, expected, got):
+        return "ce n'était pas à ton tour."
+
+    async def warn_colisions(self, collisions: List[str]):
+        await self.ctx.send(
+            f"Les equipes {french_join(collisions)} ont fait le même résultat "
+            "et doivent relancer un dé. "
+            "Le nouveau lancer effacera l'ancien."
+        )
+
+    @delete_and_pm
+    async def warn_twice(self, typ: Type):
+
+        if typ == int:
+            return "Tu as déjà lancé un dé, pas besoin de le refaire ;)"
+
+        print("Weird, DiscordTirage.warn_twice was called with", typ)
+        return "Je sais pas, le code ne devrait pas venir ici..."
+
+    @send_all
+    async def start_make_poule(self, rnd):
+        if rnd == 0:
+            yield (
+                f"Les {self.captain_mention}s, vous pouvez désormais tous lancer un dé 100 "
+                "comme ceci : `!dice 100`. "
+                "Les poules et l'ordre de passage lors du premier tour sera l'ordre croissant des dés, "
+                "c'est-à-dire que le plus petit lancer sera le premier à passer dans la poule A."
+            )
+        else:
+            yield (
+                f"Les {self.captain_mention}s, vous pouvez à nouveau tous lancer un dé 100, "
+                f"afin de déterminer les poules du second tour."
+            )
+
+    async def start_draw_order(self, poule):
+        print(poule)
+
+    async def start_select_pb(self, team):
+        await self.ctx.send(f"C'est au tour de {team.mention} de choisir un problème.")
+
+    async def annonce_poules(self, poules):
+        print(poules)
+
+    @send_all
+    async def annonce_draw_order(self, order):
+        order_str = "\n ".join(f"{i}) {tri}" for i, tri in enumerate(order))
+        yield "L'ordre de tirage des problèmes pour ce tour est donc: \n" + order_str
+
+    async def annonce_poule(self, poule):
+        teams = [self.teams[tri] for tri in self.poules[poule]]
+
+        if len(teams) == 3:
+            table = """```
+            +-----+---------+---------+---------+
+            |     | Phase 1 | Phase 2 | Phase 3 |
+            |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
+            +-----+---------+---------+---------+
+            | {0.name} |   Déf   |   Rap   |   Opp   |
+            +-----+---------+---------+---------+
+            | {1.name} |   Opp   |   Déf   |   Rap   |
+            +-----+---------+---------+---------+
+            | {2.name} |   Rap   |   Opp   |   Déf   |
+            +-----+---------+---------+---------+
+        ```"""
+        else:
+            table = """```
+            +-----+---------+---------+---------+---------+
+            |     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
+            |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |   Pb {3.pb}  |
+            +-----+---------+---------+---------+---------+
+            | {0.name} |   Déf   |         |   Rap   |   Opp   |
+            +-----+---------+---------+---------+---------+
+            | {1.name} |   Opp   |   Déf   |         |   Rap   |
+            +-----+---------+---------+---------+---------+
+            | {2.name} |   Rap   |   Opp   |   Déf   |         |
+            +-----+---------+---------+---------+---------+
+            | {3.name} |         |   Rap   |   Opp   |   Déf   |
+            +-----+---------+---------+---------+---------+
+        ```"""
+
+        embed = discord.Embed(
+            title=f"Résumé du tirage entre {french_join([t.name for t in teams])}",
+            color=EMBED_COLOR,
+        )
+
+        embed.add_field(
+            name=ROUND_NAMES[poule.rnd].capitalize(),
+            value=table.format(*self.records(teams, poule.rnd)),
+            inline=False,
+        )
+
+        for team in teams:
+            embed.add_field(
+                name=team.name + " - " + team.accepted_problems[poule.rnd],
+                value=team.details(poule.rnd),
+                inline=True,
+            )
+
+        embed.set_footer(
+            text="Ce tirage peut être affiché à tout moment avec `!draw show XXX`"
+        )
+
+        await self.ctx.send(embed=embed)
+
+    @send_all
+    async def info_start(self):
+        yield (
+            "Nous allons commencer le tirage des problèmes. "
+            "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
+            "Merci de d'envoyer seulement ce que est nécessaire et suffisant au "
+            "bon déroulement du tirage. Vous pouvez à tout moment poser toute question "
+            "si quelque chose n'est pas clair ou ne va pas."
+            "\n"
+            "\n"
+            "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
+            "est accessible sur https://tfjm.org/reglement."
+        )
+
+        yield (
+            "Nous allons d'abord tirer les poules et l'ordre de passage dans chaque tour "
+            "avec toutes les équipes puis pour chaque poule de chaque tour, nous tirerons "
+            "l'ordre de tirage pour le tour et les problèmes."
+        )
+
+    @send_all
+    async def info_finish(self):
+        yield "Le tirage est fini, merci à tout le monde !"
+        yield (
+            "Vous pouvez désormais trouver les problèmes que vous devrez opposer ou rapporter "
+            "sur la page de votre équipe."
+        )
+        # TODO: Save it
+        # TODO: make them available with the api
+
+    async def info_draw_pb(self, team, pb, rnd):
+        if pb in team.rejected[rnd]:
+            await self.ctx.send(
+                f"Vous avez déjà refusé **{pb}**, "
+                f"vous pouvez le refuser à nouveau (`!non`) et "
+                f"tirer immédiatement un nouveau problème "
+                f"ou changer d'avis et l'accepter (`!oui`)."
+            )
+        else:
+            if len(team.rejected[rnd]) >= MAX_REFUSE:
+                await self.ctx.send(
+                    f"Vous pouvez accepter ou refuser **{pb}** "
+                    f"mais si vous choisissez de le refuser, il y "
+                    f"aura une pénalité de 0.5 sur le multiplicateur du "
+                    f"défenseur."
+                )
+            else:
+                await self.ctx.send(
+                    f"Vous pouvez accepter (`!oui`) ou refuser (`!non`) **{pb}**. "
+                    f"Il reste {MAX_REFUSE - len(team.rejected[rnd])} refus sans pénalité "
+                    f"pour {team.mention}."
+                )
+
+    async def info_accepted(self, team, pb):
+        await self.ctx.send(
+            f"L'équipe {team.mention} a accepté "
+            f"**{pb}** ! Les autres équipes "
+            f"ne peuvent plus l'accepter."
+        )
+
+    async def info_rejected(self, team, pb, rnd):
+        msg = f"{team.mention} a refusé **{pb}** "
+        if pb in team.rejected[rnd]:
+            msg += "sans pénalité."
+        else:
+            msg += "!"
+        await self.ctx.send(msg)
 
 
 class Tirage(yaml.YAMLObject):
@@ -86,47 +281,14 @@ class Tirage(yaml.YAMLObject):
         assert len(teams) in (3, 4)
 
         self.channel: int = channel
-        self.teams = [Team(ctx, team) for team in teams]
+        self.teams = [Team(team) for team in teams]
         self.phase = TirageOrderPhase(self, round=0)
-
-    def team_for(self, author):
-        for team in self.teams:
-            if get(author.roles, name=team.name):
-                return team
-
-        # Should theoretically not happen
-        raise TfjmError(
-            "Tu n'es pas dans une des équipes qui font le tirage, "
-            "merci de ne pas intervenir."
-        )
-
-    async def dice(self, ctx, n):
-        if n != 100:
-            raise UnwantedCommand(
-                "C'est un dé à 100 faces qu'il faut tirer! (`!dice 100`)"
-            )
-
-        await self.phase.dice(ctx, ctx.author, random.randint(1, n))
-        await self.update_phase(ctx)
-
-    async def choose_problem(self, ctx):
-        await self.phase.choose_problem(ctx, ctx.author)
-        await self.update_phase(ctx)
-
-    async def accept(self, ctx, yes):
-        await self.phase.accept(ctx, ctx.author, yes)
-        await self.update_phase(ctx)
 
     async def update_phase(self, ctx):
         if self.phase.finished():
             next_class = await self.phase.next(ctx)
 
             if next_class is None:
-                self.phase = None
-                await ctx.send(
-                    "Le tirage est fini ! Bonne chance à tous pour la suite !"
-                )
-                await self.show(ctx)
                 await self.end(ctx)
             else:
                 # Continue on the same round.
@@ -163,70 +325,6 @@ class Tirage(yaml.YAMLObject):
         if self.channel in tirages:
             del tirages[self.channel]
 
-    def records(self, round):
-        """Get the strings needed for show the tirage in a list of Records"""
-
-        return [
-            Record(
-                team.name,
-                (team.accepted_problems[round] or "- None")[0],
-                f"k = {team.coeff(round)} ",
-            )
-            for team in in_passage_order(self.teams, round)
-        ]
-
-    async def show(self, ctx):
-        teams = ", ".join(team.name for team in self.teams)
-
-        if len(self.teams) == 3:
-            table = """```
-    +-----+---------+---------+---------+
-    |     | Phase 1 | Phase 2 | Phase 3 |
-    |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
-    +-----+---------+---------+---------+
-    | {0.name} |   Déf   |   Rap   |   Opp   |
-    +-----+---------+---------+---------+
-    | {1.name} |   Opp   |   Déf   |   Rap   |
-    +-----+---------+---------+---------+
-    | {2.name} |   Rap   |   Opp   |   Déf   |
-    +-----+---------+---------+---------+
-```"""
-        else:
-            table = """```
-    +-----+---------+---------+---------+---------+
-    |     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
-    |     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |   Pb {3.pb}  |
-    +-----+---------+---------+---------+---------+
-    | {0.name} |   Déf   |         |   Rap   |   Opp   |
-    +-----+---------+---------+---------+---------+
-    | {1.name} |   Opp   |   Déf   |         |   Rap   |
-    +-----+---------+---------+---------+---------+
-    | {2.name} |   Rap   |   Opp   |   Déf   |         |
-    +-----+---------+---------+---------+---------+
-    | {3.name} |         |   Rap   |   Opp   |   Déf   |
-    +-----+---------+---------+---------+---------+
-```"""
-
-        embed = discord.Embed(
-            title=f"Résumé du tirage entre {teams}", color=EMBED_COLOR
-        )
-
-        for r in (0, 1):
-            embed.add_field(
-                name=ROUND_NAMES[r].capitalize(),
-                value=table.format(*self.records(r)),
-                inline=False,
-            )
-
-            for team in in_passage_order(self.teams, r):
-                embed.add_field(
-                    name=team.name + " - " + team.accepted_problems[r],
-                    value=team.details(r),
-                    inline=True,
-                )
-
-        await ctx.send(embed=embed)
-
     async def show_tex(self, ctx):
         if len(self.teams) == 3:
             table = r"""
@@ -261,51 +359,7 @@ class Tirage(yaml.YAMLObject):
 
 
 class Phase:
-    NEXT = None
-
-    def __init__(self, tirage, round=0):
-        """
-        A Phase of the tirage.
-
-        :param tirage: Backreference to the tirage
-        :param round: round number, 0 for the first round and 1 for the second
-        """
-
-        assert round in (0, 1)
-        self.round = round
-        self.tirage: Tirage = tirage
-
-    def team_for(self, author):
-        return self.tirage.team_for(author)
-
-    @property
-    def teams(self):
-        return self.tirage.teams
-
-    @teams.setter
-    def teams(self, teams):
-        self.tirage.teams = teams
-
-    def captain_mention(self, ctx):
-        return get(ctx.guild.roles, name=Role.CAPTAIN).mention
-
-    async def dice(self, ctx: Context, author, dice):
-        raise UnwantedCommand()
-
-    async def choose_problem(self, ctx: Context, author):
-        raise UnwantedCommand()
-
-    async def accept(self, ctx: Context, author, yes):
-        raise UnwantedCommand()
-
-    def finished(self) -> bool:
-        return NotImplemented
-
-    async def start(self, ctx):
-        pass
-
-    async def next(self, ctx: Context) -> "Type[Phase]":
-        return self.NEXT
+    ...
 
 
 class OrderPhase(Phase):
@@ -358,11 +412,7 @@ class OrderPhase(Phase):
                     re_do.extend(teams)
 
             teams_str = ", ".join(team.mention for team in re_do)
-            await ctx.send(
-                f"Les equipes {teams_str} ont fait le même résultat "
-                "et doivent relancer un dé. "
-                "Le nouveau lancer effacera l'ancien."
-            )
+
             for team in re_do:
                 self.set_order_for(team, None)
             # We need to do this phase again.
@@ -462,32 +512,12 @@ class TiragePhase(Phase):
         ), "Choosing pb for a team that has a pb..."
 
         if not team.drawn_problem:
-            if yes:
-                raise UnwantedCommand(
-                    "Tu es bien optimiste pour vouloir accepter un problème "
-                    "avant de l'avoir tiré !"
-                )
-            else:
-                raise UnwantedCommand(
-                    "Halte là ! Ce serait bien de tirer un problème d'abord... "
-                    "et peut-être qu'il te plaira :) "
-                )
+            pass
         else:
             if yes:
                 team.accepted_problems[self.round] = team.drawn_problem
-                await ctx.send(
-                    f"L'équipe {team.mention} a accepté "
-                    f"**{team.accepted_problems[self.round]}** ! Les autres équipes "
-                    f"ne peuvent plus l'accepter."
-                )
             else:
-                msg = f"{team.mention} a refusé **{team.drawn_problem}** "
-                if team.drawn_problem in team.rejected[self.round]:
-                    msg += "sans pénalité."
-                else:
-                    msg += "!"
-                    team.rejected[self.round].add(team.drawn_problem)
-                await ctx.send(msg)
+                team.rejected[self.round].add(team.drawn_problem)
 
             team.drawn_problem = None
 
@@ -501,10 +531,6 @@ class TiragePhase(Phase):
             while self.teams[i].accepted_problems[self.round]:
                 i = (i + 1) % len(self.teams)
             self.turn = i
-
-            await ctx.send(
-                f"C'est au tour de {self.current_team.mention} de choisir un problème."
-            )
 
     def finished(self) -> bool:
         return all(team.accepted_problems[self.round] for team in self.teams)
@@ -558,61 +584,12 @@ class TiragePhase(Phase):
         return None
 
 
-class PassageOrderPhase(OrderPhase):
-    """The phase to determine the chicken's order."""
-
-    NEXT = TiragePhase
-
-    def __init__(self, tirage, round=0):
-        super().__init__(tirage, round, "de passage", "passage_order", True)
-
-    async def start(self, ctx):
-        await ctx.send(
-            "Nous allons maintenant tirer l'ordre de passage durant le tour. "
-            "L'ordre du tour sera dans l'ordre décroissant des lancers, "
-            "c'est-à-dire que l'équipe qui tire le plus grand nombre "
-            "présentera en premier."
-        )
-        await asyncio.sleep(0.5)
-
-        await ctx.send(
-            f"Les {self.captain_mention(ctx)}s, vous pouvez lancer "
-            f"à nouveau un dé 100 (`!dice 100`)"
-        )
-
-
-class TirageOrderPhase(OrderPhase):
-    """Phase to determine the tirage's order."""
-
-    NEXT = PassageOrderPhase
-
-    def __init__(self, tirage, round=0):
-        super().__init__(tirage, round, "des tirages", "tirage_order", False)
-
-    async def start(self, ctx):
-
-        await asyncio.sleep(
-            0.5
-        )  # The bot is more human if it doesn't type at the speed of light
-        await ctx.send(
-            "Nous allons d'abord tirer au sort l'ordre de tirage des problèmes "
-            f"pour le {ROUND_NAMES[self.round]}, "
-            "puis l'ordre de passage lors de ce tour."
-        )
-        await asyncio.sleep(0.5)
-        await ctx.send(
-            f"Les {self.captain_mention(ctx)}s, vous pouvez désormais lancer un dé 100 "
-            "comme ceci `!dice 100`. "
-            "L'ordre des tirages suivants sera l'ordre croissant des lancers. "
-        )
-
-
 class TirageCog(Cog, name="Tirages"):
     def __init__(self, bot):
         self.bot: CustomBot = bot
 
         # We retrieve the global variable.
-        # We don't want tirages to be ust an attribute
+        # We don't want tirages to be just an attribute
         # as we want them to outlive the Cog, for instance
         # if the cog is reloaded turing a tirage.
         from src.tfjm_discord_bot import tirages
@@ -772,16 +749,6 @@ class TirageCog(Cog, name="Tirages"):
                 r(Role.BENEVOLE): send,
             }
             await channel.edit(overwrites=overwrites)
-
-        await ctx.send(
-            "Nous allons commencer le tirage du premier tour. "
-            "Seuls les capitaines de chaque équipe peuvent désormais écrire ici. "
-            "Merci de d'envoyer seulement ce que est nécessaire et suffisant au "
-            "bon déroulement du tournoi. Vous pouvez à tout moment poser toute question "
-            "si quelque chose n'est pas clair ou ne va pas. \n\n"
-            "Pour plus de détails sur le déroulement du tirgae au sort, le règlement "
-            "est accessible sur https://tfjm.org/reglement."
-        )
 
         self.tirages[channel_id] = Tirage(ctx, channel_id, teams)
         await self.tirages[channel_id].phase.start(ctx)
