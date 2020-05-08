@@ -44,8 +44,7 @@ TOURNOIS = [
     "Paris-Saclay",
     "Paris-Avignon-Est",
     "Tours",
-    "Bordeaux",
-    "Nancy",
+    "Bordeaux-Nancy",
     "Rennes",
 ]
 
