@@ -37,6 +37,7 @@ class Joke(yaml.YAMLObject):
     joker: int
     likes: Set[int] = field(default_factory=set)
     dislikes: Set[int] = field(default_factory=set)
+    file: str = None
 
 
 class MiscCog(Cog, name="Divers"):
@@ -154,14 +155,21 @@ class MiscCog(Cog, name="Divers"):
             yaml.safe_dump_all(jokes, f)
 
     @group(name="joke", invoke_without_command=True)
-    async def joke(self, ctx):
-        await ctx.message.delete()
+    async def joke(self, ctx: Context):
+
+        m: discord.Message = ctx.message
+        await m.delete()
 
         jokes = self.load_jokes()
         joke_id = random.randrange(len(jokes))
         joke = jokes[joke_id]
 
-        message: discord.Message = await ctx.send(joke.joke)
+        if joke.file:
+            file = discord.File(joke.file)
+        else:
+            file = None
+
+        message: discord.Message = await ctx.send(joke.joke, file=file)
 
         await message.add_reaction(Emoji.PLUS_1)
         await message.add_reaction(Emoji.MINUS_1)
@@ -171,18 +179,23 @@ class MiscCog(Cog, name="Divers"):
     @send_and_bin
     async def new_joke(self, ctx: Context):
         """Ajoute une blague pour le concours de blague."""
+        jokes = self.load_jokes()
+        joke_id = len(jokes)
+
         author: discord.Member = ctx.author
         message: discord.Message = ctx.message
 
-        start = "!joke new "
-        msg = message.content[len(start) :]
+        msg = message.content[len("!joke new ") :]
 
         joke = Joke(msg, ctx.author.id, set())
 
-        jokes = self.load_jokes()
+        if message.attachments:
+            file: discord.Attachment = message.attachments[0]
+            joke.file = str(File.MEMES / f"{joke_id}-{file.filename}")
+            await file.save(joke.file)
+
         jokes.append(joke)
         self.save_jokes(jokes)
-        joke_id = len(jokes) - 1
         await message.add_reaction(Emoji.PLUS_1)
         await message.add_reaction(Emoji.MINUS_1)
 
