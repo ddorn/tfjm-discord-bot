@@ -76,6 +76,7 @@ class File:
     TEAMS = TOP_LEVEL / "data" / "teams"
     JOKES = TOP_LEVEL / "data" / "jokes"
     JOKES_V2 = TOP_LEVEL / "data" / "jokesv2"
+    MEMES = TOP_LEVEL / "data" / "memes"
 
 
 with open(File.TOP_LEVEL / "data" / "problems") as f:
