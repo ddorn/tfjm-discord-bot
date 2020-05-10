@@ -1,1 +1,1 @@
-from src.tfjm_discord_bot import bot
+from src.tfjm_discord_bot import start

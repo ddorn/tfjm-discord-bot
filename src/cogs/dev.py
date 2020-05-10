@@ -2,7 +2,7 @@ import asyncio
 from pprint import pprint
 
 import discord
-from discord import TextChannel, PermissionOverwrite, Message
+from discord import TextChannel, PermissionOverwrite, Message, ChannelType
 from discord.ext.commands import (
     command,
     has_role,
@@ -16,6 +16,7 @@ from ptpython.repl import embed
 
 from src.constants import *
 from src.core import CustomBot
+from src.utils import fg
 
 COGS_SHORTCUTS = {
     "bt": "src.base_tirage",
@@ -202,6 +203,15 @@ class DevCog(Cog, name="Dev tools"):
         ] + [id1, id2]
         await channel.delete_messages(to_delete)
         await ctx.message.delete()
+
+    @Cog.listener()
+    async def on_message(self, msg: Message):
+        ch: TextChannel = msg.channel
+        if ch.type == ChannelType.private:
+            m = f"""{fg(msg.author.name)}: {msg.content}
+MSG_ID: {fg(msg.id, 0x03A678)}
+CHA_ID: {fg(msg.channel.id, 0x03A678)}"""
+            print(m)
 
 
 def setup(bot: CustomBot):

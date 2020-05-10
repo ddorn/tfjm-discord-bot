@@ -4,6 +4,13 @@ import psutil
 from discord.ext.commands import Bot
 
 
+def fg(text, color: int = 0xFFA500):
+    r = color >> 16
+    g = color >> 8 & 0xFF
+    b = color & 0xFF
+    return f"\033[38;2;{r};{g};{b}m{text}\033[m"
+
+
 def french_join(l):
     l = list(l)
     start = ", ".join(l[:-1])
