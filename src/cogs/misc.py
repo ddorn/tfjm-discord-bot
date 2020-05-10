@@ -104,6 +104,40 @@ class MiscCog(Cog, name="Divers"):
                 data = io.BytesIO(await resp.read())
                 await ctx.send(file=discord.File(data, "cool_image.png"))
 
+    @command(hidden=True, aliases=["bang", "pan"])
+    async def pew(self, ctx):
+        await ctx.send("Tu t'es raté ! Kwaaack :duck:")
+
+    @command()
+    async def hug(self, ctx, who: discord.Member):
+        """Fait un câlin à quelqu'un."""
+
+        bonuses = [
+            "C'est trop meuuuugnon !",
+            "Ça remonte le moral ! :D",
+            ":hugging:",
+            ":smiling_face_with_3_hearts:",
+            "Oh wiiii",
+        ]
+
+        if who == ctx.author:
+            msg = f"{who.mention} se fait un auto-calin !"
+            bonuses += [
+                "Mais c'est un peu ridicule...",
+                "Mais il a les bras trop courts ! :cactus:",
+                "Il en faut peu pour être heureux :wink:",
+            ]
+        else:
+            msg = f"{ctx.author.mention} fait un gros câlin à {who.mention} !"
+            bonuses += [
+                f"Mais {who.display_name} n'apprécie pas...",
+                "Et ils s'en vont chasser des canards ensemble :wink:",
+            ]
+
+        bonus = random.choice(bonuses)
+
+        await ctx.send(f"{msg} {bonus}")
+
     # ---------------- Jokes ---------------- #
 
     def load_jokes(self) -> List[Joke]:
