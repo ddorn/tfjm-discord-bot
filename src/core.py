@@ -2,7 +2,7 @@ import asyncio
 import sys
 from importlib import reload
 
-from discord import User, Message, Reaction, NotFound
+from discord import User, Message, Reaction, NotFound, Forbidden
 from discord.ext.commands import Bot
 
 __all__ = ["CustomBot"]
@@ -60,8 +60,12 @@ class CustomBot(Bot):
                 reaction, u = await bot.wait_for(
                     "reaction_add", check=check, timeout=timeout
                 )
-                the_msg = get(msgs, id=reaction.message.id)
-                await the_msg.delete()
+
+                the_msg: Message = get(msgs, id=reaction.message.id)
+                try:
+                    await the_msg.delete()
+                except NotFound:
+                    pass  # message was deleted
                 msgs.remove(the_msg)
         except asyncio.TimeoutError:
             pass
@@ -69,6 +73,6 @@ class CustomBot(Bot):
         for m in msgs:
             try:
                 await m.clear_reaction(Emoji.BIN)
-            except NotFound:
-                # Message or reaction deleted
+            except (NotFound, Forbidden):
+                # Message or reaction deleted / in dm channel
                 pass

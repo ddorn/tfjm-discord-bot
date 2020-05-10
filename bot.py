@@ -1,5 +1,4 @@
-from src import bot
-from src.constants import TOKEN
+from src import start
 
 if __name__ == "__main__":
-    bot.run(TOKEN)
+    start()
