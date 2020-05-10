@@ -20,6 +20,9 @@ from discord.ext.commands import (
     CommandError,
     Group,
     group,
+    MemberConverter,
+    BadArgument,
+    RoleConverter,
 )
 
 from src.constants import *
@@ -110,8 +113,20 @@ class MiscCog(Cog, name="Divers"):
         await ctx.send("Tu t'es raté ! Kwaaack :duck:")
 
     @command()
-    async def hug(self, ctx, who: discord.Member):
+    async def hug(self, ctx, who):
         """Fait un câlin à quelqu'un."""
+
+        if who != "everyone":
+            try:
+                who = await RoleConverter().convert(ctx, who)
+            except BadArgument:
+                try:
+                    who = await MemberConverter().convert(ctx, who)
+                except BadArgument:
+                    return await ctx.send(
+                        f'Je ne connais pas "{who}", verifie l\'orthographe '
+                        f"et n'oublie pas les guillemets si il y a des espaces dans son nom. :wink:"
+                    )
 
         bonuses = [
             "C'est trop meuuuugnon !",
@@ -128,11 +143,20 @@ class MiscCog(Cog, name="Divers"):
                 "Mais il a les bras trop courts ! :cactus:",
                 "Il en faut peu pour être heureux :wink:",
             ]
+        elif who == "everyone" or who == ctx.guild.default_role:
+            msg = f"{ctx.author.mention} fait un câlin a touuuut le monde !"
+            bonuses += [
+                "Ça fait beaucoup de gens pour un câlin !",
+                "Plus on est, plus on est calins !",
+                "C'est pas très COVID-19 tout ça !",
+                "Tout le monde est heureux maintenant !",
+            ]
         else:
             msg = f"{ctx.author.mention} fait un gros câlin à {who.mention} !"
             bonuses += [
-                f"Mais {who.display_name} n'apprécie pas...",
+                f"Mais {who.mention} n'apprécie pas...",
                 "Et ils s'en vont chasser des canards ensemble :wink:",
+                "Oh ! Il sent bon...",
             ]
 
         bonus = random.choice(bonuses)
@@ -211,9 +235,13 @@ class MiscCog(Cog, name="Divers"):
         start = time()
         end = start + 24 * 60 * 60
         while time() < end:
-            reaction, user = await self.bot.wait_for(
-                "reaction_add", check=check, timeout=end - time()
-            )
+
+            try:
+                reaction, user = await self.bot.wait_for(
+                    "reaction_add", check=check, timeout=end - time()
+                )
+            except TimeoutError:
+                return
 
             if user.id == BOT:
                 continue
