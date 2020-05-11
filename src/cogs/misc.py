@@ -101,14 +101,17 @@ class MiscCog(Cog, name="Divers"):
     @command(hidden=True)
     async def fractal(self, ctx: Context):
         await ctx.message.add_reaction(Emoji.CHECK)
-
-        seed = random.randint(0, 1_000_000_000)
+        msg: discord.Message = ctx.message
+        seed = msg.content[len("!fractal ") :]
+        seed = seed or random.randint(0, 1_000_000_000)
         async with aiohttp.ClientSession() as session:
             async with session.get(FRACTAL_URL.format(seed=seed)) as resp:
                 if resp.status != 200:
                     return await ctx.send("Could not download file...")
                 data = io.BytesIO(await resp.read())
-                await ctx.send(file=discord.File(data, "cool_image.png"))
+                await ctx.send(
+                    f"Seed: {seed}", file=discord.File(data, "cool_image.png")
+                )
 
     @command(hidden=True, aliases=["bang", "pan"])
     async def pew(self, ctx):
