@@ -24,10 +24,12 @@ from discord.ext.commands import (
     BadArgument,
     RoleConverter,
 )
+from discord.utils import get
 
 from src.constants import *
 from src.constants import Emoji
 from src.core import CustomBot
+from src.errors import TfjmError
 from src.utils import has_role, start_time, send_and_bin
 
 
@@ -179,14 +181,24 @@ class MiscCog(Cog, name="Divers"):
             yaml.safe_dump_all(jokes, f)
 
     @group(name="joke", invoke_without_command=True)
-    async def joke(self, ctx: Context):
+    async def joke(self, ctx: Context, id: int = None):
 
         m: discord.Message = ctx.message
         await m.delete()
 
         jokes = self.load_jokes()
-        joke_id = random.randrange(len(jokes))
-        joke = jokes[joke_id]
+        if id is not None:
+            joke_id = id
+            jokes = sorted(
+                jokes, key=lambda j: len(j.likes) - len(j.dislikes), reverse=True
+            )
+        else:
+            joke_id = random.randrange(len(jokes))
+
+        try:
+            joke = jokes[joke_id]
+        except IndexError:
+            raise TfjmError("Il n'y a pas de blague avec cet ID.")
 
         if joke.file:
             file = discord.File(joke.file)
@@ -253,6 +265,28 @@ class MiscCog(Cog, name="Divers"):
                 jokes[joke_id].dislikes.add(user.id)
 
             self.save_jokes(jokes)
+
+    @joke.command(name="top", hidden=True)
+    async def best_jokes(self, ctx: Context):
+        """Affiche le palmares des blagues."""
+
+        jokes = self.load_jokes()
+
+        s = sorted(jokes, key=lambda j: len(j.likes) - len(j.dislikes), reverse=True)
+
+        embed = discord.Embed(title="Palmares des blagues.")
+        for i, joke in enumerate(s[:10]):
+            who = get(ctx.guild.members, id=joke.joker)
+
+            text = joke.joke
+            if joke.file:
+                text += " - image non inclue - "
+
+            embed.add_field(
+                name=f"{i} - {who.display_name} - {len(joke.likes)}", value=text
+            )
+
+        await ctx.send(embed=embed)
 
     # ----------------- Help ---------------- #
 
