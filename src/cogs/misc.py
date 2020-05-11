@@ -165,6 +165,15 @@ class MiscCog(Cog, name="Divers"):
 
         await ctx.send(f"{msg} {bonus}")
 
+    @command(aliases=["pong"])
+    async def ping(self, ctx):
+        """Affiche la latence avec le bot."""
+        ping = time()
+        msg: discord.Message = await ctx.send("Pong !")
+        pong = time()
+
+        await msg.edit(content=f"Pong ! Ça a pris {int(1000 * (pong - ping))}ms")
+
     # ---------------- Jokes ---------------- #
 
     def load_jokes(self) -> List[Joke]:
