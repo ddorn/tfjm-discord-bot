@@ -54,6 +54,7 @@ class Role:
     DEV = "dev"
     ORGA = "Orga"
     ORGAS = tuple(f"Orga {t}" for t in TOURNOIS)
+    JURY = tuple(f"Jury {t}" for t in TOURNOIS)
     BENEVOLE = "Bénévole"
     CAPTAIN = "Capitaine"
     PARTICIPANT = "Participant"

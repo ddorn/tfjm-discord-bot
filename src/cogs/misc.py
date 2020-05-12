@@ -5,12 +5,12 @@ import random
 from dataclasses import dataclass, field
 from operator import attrgetter
 from time import time
-from typing import List, Set
+from typing import List, Set, Union
 
 import aiohttp
 import discord
 import yaml
-from discord import Guild
+from discord import Guild, Member
 from discord.ext import commands
 from discord.ext.commands import (
     Cog,
@@ -132,6 +132,9 @@ class MiscCog(Cog, name="Divers"):
                         f'Je ne connais pas "{who}", verifie l\'orthographe '
                         f"et n'oublie pas les guillemets si il y a des espaces dans son nom. :wink:"
                     )
+        else:
+            who = ctx.guild.default_role
+        who: Union[discord.Role, Member]
 
         bonuses = [
             "C'est trop meuuuugnon !",
@@ -139,16 +142,27 @@ class MiscCog(Cog, name="Divers"):
             ":hugging:",
             ":smiling_face_with_3_hearts:",
             "Oh wiiii",
+            "Iel se sent désormais prêt à travailler à fond sur les solutions de AQT",
+            f"{who.mention} en redemande un !",
+            "Le·a pauvre, iel est tout·e rouge !",
+            "Hihi, il gratte ton pull en laine ! :sheep:",
         ]
+
+        if (
+            isinstance(who, discord.Member)
+            and has_role(who, Role.JURY)
+            and has_role(ctx.author, Role.PARTICIPANT)
+        ):
+            bonuses += ["Il s'agit surement là d'une tentative de corruption !"]
 
         if who == ctx.author:
             msg = f"{who.mention} se fait un auto-calin !"
             bonuses += [
                 "Mais c'est un peu ridicule...",
-                "Mais il a les bras trop courts ! :cactus:",
+                "Mais iel a les bras trop courts ! :cactus:",
                 "Il en faut peu pour être heureux :wink:",
             ]
-        elif who == "everyone" or who == ctx.guild.default_role:
+        elif who == ctx.guild.default_role:
             msg = f"{ctx.author.mention} fait un câlin a touuuut le monde !"
             bonuses += [
                 "Ça fait beaucoup de gens pour un câlin !",
@@ -161,7 +175,12 @@ class MiscCog(Cog, name="Divers"):
             bonuses += [
                 f"Mais {who.mention} n'apprécie pas...",
                 "Et ils s'en vont chasser des canards ensemble :wink:",
-                "Oh ! Il sent bon...",
+                "Oh ! Iel sent bon...",
+                f"{who.mention} a serré tellment fort qu'iel vous a coupé en deux :scream:",
+                f"{who.mention} propose à {ctx.author.mention} de se revoir autour d'une :pizza: !",
+                "Les drones du commissaire Winston passent par là et vous ordonnent d'arrêter.",
+                "Après ce beau moment de tendresse, ils décident d'aller discuter en créant des puzzles.",
+                f"{who.mention} se réfugie dans l'entrepôt d'Animath et bloque l'entrée avec un meuble.",
             ]
 
         bonus = random.choice(bonuses)
