@@ -2,6 +2,7 @@ import datetime
 import io
 import itertools
 import random
+import urllib
 from dataclasses import dataclass, field
 from operator import attrgetter
 from time import time
@@ -50,6 +51,7 @@ class MiscCog(Cog, name="Divers"):
         self.bot = bot
         self.show_hidden = False
         self.verify_checks = True
+        self.last_fractal_time = 0.0
 
     @command(
         name="choose",
@@ -100,18 +102,36 @@ class MiscCog(Cog, name="Divers"):
 
     @command(hidden=True)
     async def fractal(self, ctx: Context):
+
+        if time() > self.last_fractal_time + FRACTAL_COOLDOWN or has_role(
+            ctx.author, Role.DEV
+        ):
+            self.last_fractal_time = time()
+        else:
+            return await ctx.send(
+                f"Merci de ne pas générer plus d'une fractale "
+                f"toutes les {FRACTAL_COOLDOWN} secondes :wink: "
+                f"Il reste {round(FRACTAL_COOLDOWN - (time() - self.last_fractal_time), 1)}s."
+            )
+
         await ctx.message.add_reaction(Emoji.CHECK)
         msg: discord.Message = ctx.message
         seed = msg.content[len("!fractal ") :]
-        seed = seed or random.randint(0, 1_000_000_000)
+        seed = seed or str(random.randint(0, 1_000_000_000))
         async with aiohttp.ClientSession() as session:
-            async with session.get(FRACTAL_URL.format(seed=seed)) as resp:
+            async with session.get(
+                FRACTAL_URL.format(seed=urllib.parse.quote(seed))
+            ) as resp:
                 if resp.status != 200:
-                    return await ctx.send("Could not download file...")
+                    return await ctx.send(
+                        "Il y a un problème pour calculer/télécharger l'image..."
+                    )
                 data = io.BytesIO(await resp.read())
                 await ctx.send(
                     f"Seed: {seed}", file=discord.File(data, "cool_image.png")
                 )
+
+                self.last_fractal_time = time()
 
     @command(hidden=True, aliases=["bang", "pan"])
     async def pew(self, ctx):
