@@ -95,6 +95,16 @@ class BaseTirage(yaml.YAMLObject):
         self.poules: Dict[Poule, List[str]] = {}
         """A mapping between the poule and the list of teams in this poule."""
 
+    def availaible(self, pb, poule):
+        pbs = [
+            self.teams[team].accepted_problems[poule.rnd] for team in self.poules[poule]
+        ]
+
+        if len(self.poules[poule]) < 5:
+            return pb not in pbs
+        else:
+            return pbs.count(pb) < 2
+
     async def event(self, event: Event):
         event.set()
         await self.queue.put(event)
@@ -113,11 +123,10 @@ class BaseTirage(yaml.YAMLObject):
         else:
             return await self.warn_wrong_team(None, trigram)
 
-        other_pbs = [self.teams[team].accepted_problems[rnd] for team in teams]
         available = [
             pb
             for pb in PROBLEMS
-            if pb not in team.accepted_problems and pb not in other_pbs
+            if pb not in team.accepted_problems and self.availaible(pb, poule)
         ]
         return await self.event(Event(trigram, random.choice(available)))
 
