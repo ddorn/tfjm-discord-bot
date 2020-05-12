@@ -14,6 +14,7 @@ __all__ = [
     "TOURNOIS",
     "EMBED_COLOR",
     "FRACTAL_URL",
+    "FRACTAL_COOLDOWN",
     "File",
     "Emoji",
 ]
@@ -36,6 +37,7 @@ BOT = 703305132300959754
 TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
 EMBED_COLOR = 0xFFA500
 FRACTAL_URL = "https://thefractal.space/img/{seed}.png?size=1500"
+FRACTAL_COOLDOWN = 30  # seconds
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]
 TOURNOIS = [
