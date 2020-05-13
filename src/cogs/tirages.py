@@ -14,7 +14,7 @@ from typing import Type, Dict, Union, Optional, List
 import discord
 import yaml
 from discord.ext import commands
-from discord.ext.commands import group, Cog, Context
+from discord.ext.commands import group, Cog, Context, RoleConverter
 from discord.utils import get
 
 from src.base_tirage import BaseTirage, Event, Poule
@@ -507,9 +507,10 @@ class TirageCog(Cog, name="Tirages"):
             dice = random.randint(1, n)
             return f"{ctx.author.mention} : {Emoji.DICE} {dice}"
 
-    @commands.command(name="dice-all", aliases=["da"], hidden=True)
+    @commands.command(name="dice-all", aliases=["da"])
     @commands.has_role(Role.DEV)
     async def dice_all_cmd(self, ctx, *teams):
+        """Lance un dé pour chaque equipe afin de tester les tirages."""
         channel = ctx.channel.id
         if channel in self.tirages:
             for t in teams:
@@ -626,10 +627,9 @@ class TirageCog(Cog, name="Tirages"):
         channel_id = ctx.channel.id
 
         if channel_id in self.tirages:
-            print(self.tirages, channel_id)
-            print(self.tirages[channel_id])
+            await ctx.send(f"Le tirage {self.tirages[channel_id].id} est annulé.")
+            self.tirages[channel_id].save()
             del self.tirages[channel_id]
-            await ctx.send("Le tirage est annulé.")
         else:
             await ctx.send("Il n'y a pas de tirage en cours.")
 
@@ -656,18 +656,14 @@ class TirageCog(Cog, name="Tirages"):
     def get_tirages(self) -> Dict[int, BaseTirage]:
         return DiscordTirage.load_all()
 
-    def save_tirages(self, tirages):
-        File.TIRAGES.touch()
-        with open(File.TIRAGES, "w") as f:
-            yaml.dump(tirages, f)
-
     @draw_group.command(name="show")
     async def show_cmd(self, ctx: Context, tirage_id: str = "all"):
         """
         Affiche le résumé d'un tirage.
 
         Exemples:
-            `!draw show all` - Liste les ID possible
+            `!draw show all` - Liste les ID possibles
+            `!draw show TRI` - Affiche les tirages avec l'équipe TRI
             `!draw show 42` - Affiche le tirage n°42
         """
 
@@ -686,6 +682,12 @@ class TirageCog(Cog, name="Tirages"):
                 f"`{key}`: {', '.join(tirage.teams)}" for key, tirage in tirages.items()
             )
             await ctx.send(msg)
+        elif len(tirage_id) == 3 and tirage_id.isupper():
+            for t in tirages.values():
+                for p, teams in t.poules.items():
+                    if tirage_id in teams:
+                        t.ctx = ctx
+                        await t.annonce_poule(p)
         else:
             try:
                 n = int(tirage_id)
