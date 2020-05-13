@@ -226,13 +226,42 @@ class BaseTirage(yaml.YAMLObject):
             accept = await self.next(bool, team.name)
             if accept.value:
                 team.accepted_problems[poule.rnd] = pevent.value
-                await self.info_accepted(team, pevent.value)
+                await self.info_accepted(
+                    team, pevent.value, self.availaible(pevent.value, poule)
+                )
             else:
                 await self.info_rejected(team, pevent.value, rnd=poule.rnd)
                 team.rejected[poule.rnd].add(pevent.value)
 
             current += 1
             current %= len(teams)
+
+        if len(teams) == 5:
+            # We can determine the passage order only once problems are drawn.
+            order = [self.teams[tri] for tri in self.poules[poule]]
+            pbs = [team.accepted_problems[poule.rnd] for team in order]
+
+            doubles = []
+            i = 0
+            while i < len(order):
+                team = order[i]
+                if pbs.count(team.accepted_problems[poule.rnd]) == 2:
+                    # We pop the two with the same pb and add them to the doubles
+                    doubles.append(order.pop(i))
+                    other = next(
+                        filter(
+                            lambda t: team.accepted_problems[poule.rnd]
+                            == t.accepted_problems[poule.rnd],
+                            order,
+                        )
+                    )
+                    doubles.append(other)
+                    order.remove(other)
+                else:
+                    i += 1
+            # The conflicts
+            order = doubles + order
+            self.poules[poule] = order
 
         await self.annonce_poule(poule)
 
@@ -292,7 +321,7 @@ class BaseTirage(yaml.YAMLObject):
     async def info_draw_pb(self, team, pb, rnd):
         """Called when a team draws a problem."""
 
-    async def info_accepted(self, team, pb):
+    async def info_accepted(self, team, pb, still_available):
         """Called when a team accepts a problem."""
 
     async def info_rejected(self, team, pb, rnd):
