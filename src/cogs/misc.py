@@ -115,7 +115,7 @@ class MiscCog(Cog, name="Divers"):
             seed = seed or str(random.randint(0, 1_000_000_000))
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    FRACTAL_URL.format(seed=urllib.parse.quote(seed))
+                    FRACTAL_URL.format(seed=urllib.parse.quote(seed)), timeout=120
                 ) as resp:
                     if resp.status != 200:
                         return await ctx.send(
@@ -247,7 +247,7 @@ class MiscCog(Cog, name="Divers"):
             raise TfjmError("Il n'y a pas de blague avec cet ID.")
 
         if joke.file:
-            file = discord.File(joke.file)
+            file = discord.File(File.MEMES / joke.file)
         else:
             file = None
 
@@ -273,8 +273,8 @@ class MiscCog(Cog, name="Divers"):
 
         if message.attachments:
             file: discord.Attachment = message.attachments[0]
-            joke.file = str(File.MEMES / f"{joke_id}-{file.filename}")
-            await file.save(joke.file)
+            joke.file = str(f"{joke_id}-{file.filename}")
+            await file.save(File.MEMES / joke.file)
 
         jokes.append(joke)
         self.save_jokes(jokes)

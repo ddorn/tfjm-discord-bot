@@ -34,9 +34,9 @@ if TOKEN is None:
 GUILD = "690934836696973404"
 DIEGO = 430566197868625920  # Mon id
 BOT = 703305132300959754
-TEAMS_CHANNEL_CATEGORY = "Channels d'équipes"
+TEAMS_CHANNEL_CATEGORY = "Channels d'équipes 2"
 EMBED_COLOR = 0xFFA500
-FRACTAL_URL = "https://thefractal.space/img/{seed}.png?size=1500"
+FRACTAL_URL = "https://thefractal.space/img/{seed}.png?size=1000"
 FRACTAL_COOLDOWN = 30  # seconds
 
 ROUND_NAMES = ["premier tour", "deuxième tour"]

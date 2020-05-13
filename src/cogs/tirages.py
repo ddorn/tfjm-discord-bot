@@ -273,17 +273,17 @@ class DiscordTirage(BaseTirage):
 
         if len(teams) == 3:
             table = """```
-+-----+---------+---------+---------+
-|     | Phase 1 | Phase 2 | Phase 3 |
-|     |   Pb {0.pb}  |   Pb {1.pb}  |   Pb {2.pb}  |
-+-----+---------+---------+---------+
-| {0.name} |   Déf   |   Rap   |   Opp   |
-+-----+---------+---------+---------+
-| {1.name} |   Opp   |   Déf   |   Rap   |
-+-----+---------+---------+---------+
-| {2.name} |   Rap   |   Opp   |   Déf   |
-+-----+---------+---------+---------+```"""
-        else:
+╔═════╦═════════╦═════════╦═════════╗
+║     ║ Phase 1 ║ Phase 2 ║ Phase 3 ║
+║     ║   Pb {0.pb}  ║   Pb {0.pb}  ║   Pb {0.pb}  ║
+╠═════╬═════════╬═════════╬═════════╣
+║ {0.name} ║   Def   ║   Rap   ║   Opp   ║
+╠═════╬═════════╬═════════╬═════════╣
+║ {1.name} ║   Opp   ║   Def   ║   Rap   ║
+╠═════╬═════════╬═════════╬═════════╣
+║ {2.name} ║   Rap   ║   Opp   ║   Def   ║
+╚═════╩═════════╩═════════╩═════════╝```"""
+        elif len(teams) == 4:
             table = """```
 +-----+---------+---------+---------+---------+
 |     | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
@@ -297,6 +297,26 @@ class DiscordTirage(BaseTirage):
 +-----+---------+---------+---------+---------+
 | {3.name} |         |   Rap   |   Opp   |   Déf   |
 +-----+---------+---------+---------+---------+```"""
+        elif len(teams) == 5:
+            table = """```
+╔═════╦═══════════════════╦═══════════════════╦═════════╗
+║     ║      Phase 1      ║      Phase 2      ║ Phase 3 ║
+╠═════╬═════════╦═════════╬═════════╦═════════╬═════════╣
+║     ║ Salle 1 ║ Salle 2 ║ Salle 1 ║ Salle 2 ║ Salle 1 ║
+║     ║   Pb  {0.pb}  ║   Pb {1.pb}  ║   Pb {2.pb}  ║   Pb {3.pb}  ║   Pb {4.pb}  ║
+╠═════╬═════════╬═════════╬═════════╬═════════╬═════════╣
+║ {0.name} ║   Def   ║         ║   Opp   ║   Rap   ║         ║
+╠═════╬═════════╬═════════╬═════════╬═════════╬═════════╣
+║ {1.name} ║         ║   Def   ║   Rap   ║         ║   Opp   ║
+╠═════╬═════════╬═════════╬═════════╬═════════╬═════════╣
+║ {2.name} ║   Opp   ║         ║   Def   ║         ║   Rap   ║
+╠═════╬═════════╬═════════╬═════════╬═════════╬═════════╣
+║ {3.name} ║   Rap   ║   Opp   ║         ║   Def   ║         ║
+╠═════╬═════════╬═════════╬═════════╬═════════╬═════════╣
+║ {4.name} ║         ║   Rap   ║         ║   Opp   ║   Def   ║
+╚═════╩═════════╩═════════╩═════════╩═════════╩═════════╝```"""
+        else:
+            table = "WTF il n'y a pas 3,4 ou 5 equipes ici."
 
         embed = discord.Embed(
             title=f"Résumé du tirage entre {french_join([t.name for t in teams])}",
@@ -389,12 +409,18 @@ class DiscordTirage(BaseTirage):
                 )
 
     @safe
-    async def info_accepted(self, team, pb):
-        await self.ctx.send(
-            f"L'équipe {team.mention} a accepté "
-            f"**{pb}** ! Les autres équipes "
-            f"ne peuvent plus l'accepter."
-        )
+    async def info_accepted(self, team, pb, still_available):
+        if still_available:
+            await self.ctx.send(
+                f"L'équipe {team.mention} a accepté "
+                f"**{pb}** ! Une autre équipe peut encore l'accepter."
+            )
+        else:
+            await self.ctx.send(
+                f"L'équipe {team.mention} a accepté "
+                f"**{pb}** ! Les autres équipes "
+                f"ne peuvent plus l'accepter."
+            )
 
     @safe
     async def info_rejected(self, team, pb, rnd):
@@ -574,8 +600,8 @@ class TirageCog(Cog, name="Tirages"):
                 "par exemple `3+3` pour deux poules à trois équipes"
             )
 
-        if not set(fmt).issubset({3, 4}):
-            raise TfjmError("Seuls les poules à 3 ou 4 équipes sont suportées.")
+        if not set(fmt).issubset({3, 4, 5}):
+            raise TfjmError("Seuls les poules à 3, 4 ou 5 équipes sont suportées.")
 
         # Here all data should be valid
 

@@ -279,7 +279,9 @@ class TeamsCog(Cog, name="Teams"):
             channel_name,
             overwrites={
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                team_role: discord.PermissionOverwrite(read_messages=True),
+                team_role: discord.PermissionOverwrite(
+                    read_messages=True, manage_channels=True
+                ),
             },
             category=team_channel_category,
             reason=f"{ctx.author.name} à demandé une channel pour son équipe.",
