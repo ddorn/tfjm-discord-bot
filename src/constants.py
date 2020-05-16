@@ -3,13 +3,16 @@ from pathlib import Path
 from time import time
 
 __all__ = [
-    "TOKEN",
+    "DISCORD_TOKEN",
+    "TFJM_TOKEN",
     "Role",
     "PROBLEMS",
     "MAX_REFUSE",
     "ROUND_NAMES",
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
+    "ANANAS",
+    "FAN_CLUBS",
     "BOT",
     "TOURNOIS",
     "EMBED_COLOR",
@@ -20,9 +23,11 @@ __all__ = [
 ]
 
 
-TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
+DISCORD_TOKEN = os.environ.get("TFJM_DISCORD_TOKEN")
+TFJM_TOKEN = os.environ.get("TFJM_ORG_TOKEN")
 
-if TOKEN is None:
+
+if DISCORD_TOKEN is None:
     print("No token for the bot were found.")
     print("You need to set the TFJM_DISCORD_TOKEN variable in your environement")
     print("Or just run:")
@@ -33,6 +38,11 @@ if TOKEN is None:
 
 GUILD = "690934836696973404"
 DIEGO = 430566197868625920  # Mon id
+ANANAS = 619132180408303616
+FAN_CLUBS = {
+    DIEGO: 706586020841259078,
+    ANANAS: 706586027535368223,
+}
 BOT = 703305132300959754
 TEAMS_CHANNEL_CATEGORY = "Channels d'équipes 2"
 EMBED_COLOR = 0xFFA500
