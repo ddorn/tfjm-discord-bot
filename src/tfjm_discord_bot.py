@@ -29,7 +29,7 @@ def start():
     bot.load_extension("src.cogs.tirages")
     bot.load_extension("src.utils")
 
-    bot.run(TOKEN)
+    bot.run(DISCORD_TOKEN)
 
 
 if __name__ == "__main__":
