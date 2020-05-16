@@ -9,7 +9,7 @@ from discord.utils import get, find
 
 from src.constants import *
 from src.core import CustomBot
-from src.utils import has_role, send_and_bin
+from src.utils import has_role, send_and_bin, french_join
 
 Team = namedtuple("Team", ["name", "trigram", "tournoi", "secret", "status"])
 
@@ -90,33 +90,30 @@ class TeamsCog(Cog, name="Teams"):
         return "C'est fait !"
 
     @commands.command(name="tourist")
-    @commands.has_any_role(*Role.ORGAS)
     @send_and_bin
-    async def touriste_cmd(self, ctx: Context, poule, member: Member):
+    async def touriste_cmd(self, ctx: Context, tournoi):
         """
-        (orga) Accepte quelqu'un comme touriste pour une certaine poule.
+        Permet de voir et ecouter dans les salons d'un certain tournoi.
 
         Exemple:
-            `!tourist A Diego` - Ajoute Diego comme touriste dans la Poule A
+            `!tourist Bordeaux-Nancy` - Donne les droits de spectateurs pour Bordeaux-Nancy
         """
 
-        poule = f"Poule {poule}"
-        tournoi = find(lambda r: r.name.startswith("Orga"), ctx.author.roles)
-        tournoi_name = tournoi.name.partition(" ")[2]
+        if ctx.author.top_role != ctx.guild.default_role:
+            return f"{ctx.author.mention} tu as déjà un role, devenir spéctateur t'enlèverait des droits."
+
+        if tournoi not in TOURNOIS:
+            return f"{tournoi} n'est pas un nom de tournoi. Possibilités: {french_join(TOURNOIS)}"
+
         guild: discord.Guild = ctx.guild
-
-        poule_channel: VoiceChannel = get(
-            guild.voice_channels, name=poule, category__name=tournoi_name
-        )
-        if poule_channel is None:
-            return f"La poule '{poule}' n'existe pas à {tournoi_name}"
-
+        tournoi_role = get(guild.roles, name=tournoi)
         touriste_role = get(guild.roles, name=Role.TOURIST)
-        region = get(guild.roles, name=tournoi_name)
-        await member.add_roles(touriste_role, region)
 
-        await poule_channel.set_permissions(member, view_channel=True, connect=True)
-        return f"{member.mention} à été ajouté comme spectateur dans la {poule} de {tournoi_name}"
+        await ctx.author.add_roles(
+            touriste_role, tournoi_role, reason="Demande via le bot."
+        )
+
+        return f"{ctx.author.mention} à été ajouté comme spectateur dans à {tournoi}."
 
     @group(name="team", invoke_without_command=True)
     async def team(self, ctx):
