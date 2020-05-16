@@ -133,8 +133,8 @@ class MiscCog(Cog, name="Divers"):
     async def pew(self, ctx):
         await ctx.send("Tu t'es raté ! Kwaaack :duck:")
 
-    @command()
-    async def hug(self, ctx, who):
+    @command(aliases=["<3"])
+    async def hug(self, ctx, who="everyone"):
         """Fait un câlin à quelqu'un."""
 
         if who != "everyone":
@@ -144,10 +144,7 @@ class MiscCog(Cog, name="Divers"):
                 try:
                     who = await MemberConverter().convert(ctx, who)
                 except BadArgument:
-                    return await ctx.send(
-                        f'Je ne connais pas "{who}", verifie l\'orthographe '
-                        f"et n'oublie pas les guillemets si il y a des espaces dans son nom. :wink:"
-                    )
+                    return await ctx.send(f'Il n\'y a pas de "{who}". :man_shrugging:')
         else:
             who = ctx.guild.default_role
         who: Union[discord.Role, Member]
@@ -186,6 +183,8 @@ class MiscCog(Cog, name="Divers"):
                 "C'est pas très COVID-19 tout ça !",
                 "Tout le monde est heureux maintenant !",
             ]
+        elif who == self.bot.user:
+            bonuses += ["Je trouve ça très bienveillant <3"]
         else:
             msg = f"{ctx.author.mention} fait un gros câlin à {who.mention} !"
             bonuses += [
@@ -218,7 +217,6 @@ class MiscCog(Cog, name="Divers"):
         role_id = FAN_CLUBS.get(who.id, None)
         role = get(ctx.guild.roles, id=role_id)
 
-        print(FAN_CLUBS, who.id, role_id, role)
         if role is not None:
             await ctx.author.add_roles(role)
             await ctx.send(f"Bienvenue au {role.mention} !! :tada:")

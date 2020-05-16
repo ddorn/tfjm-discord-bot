@@ -476,7 +476,6 @@ class TirageCog(Cog, name="Tirages"):
                 if n != n:  # NaN
                     raise TfjmError("Nan, ça je peux pas faire !")
                 if not n.is_integer():
-                    print(n)
                     raise TfjmError(
                         "Un dé avec des fractions de faces ? "
                         "Si tu me donnes un patron, je le lancerai !"
