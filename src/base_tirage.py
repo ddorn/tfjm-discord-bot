@@ -163,7 +163,6 @@ class BaseTirage(yaml.YAMLObject):
 
             for t in collisions:
                 dices[t] = None
-            collisions = []
 
             while None in dices.values():
                 event = await self.next(int)
@@ -176,8 +175,10 @@ class BaseTirage(yaml.YAMLObject):
                 else:
                     await self.warn_twice(int)
 
+            collisions = [t for t in teams if list(dices.values()).count(dices[t]) > 1]
             if collisions:
                 await self.warn_colisions(collisions)
+
         return dices
 
     async def make_poules(self):
