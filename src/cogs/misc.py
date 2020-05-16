@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import io
 import itertools
@@ -211,6 +212,22 @@ class MiscCog(Cog, name="Divers"):
 
         await msg.edit(content=f"Pong ! Ça a pris {int(1000 * (pong - ping))}ms")
 
+    @command(name="fan", aliases=["join", "adhere"], hidden=True)
+    async def fan_club_cmd(self, ctx: Context, who: Member):
+        """Permet de rejoindre le fan-club d'Ananas ou Citron Vert."""
+        role_id = FAN_CLUBS.get(who.id, None)
+        role = get(ctx.guild.roles, id=role_id)
+
+        print(FAN_CLUBS, who.id, role_id, role)
+        if role is not None:
+            await ctx.author.add_roles(role)
+            await ctx.send(f"Bienvenue au {role.mention} !! :tada:")
+        else:
+            await ctx.send(
+                f"{who.mention} n'a pas encore de fan club. Peut-être qu'un jour "
+                f"iel sera un membre influent du CNO ?"
+            )
+
     # ---------------- Jokes ---------------- #
 
     def load_jokes(self) -> List[Joke]:
@@ -298,7 +315,7 @@ class MiscCog(Cog, name="Divers"):
                 reaction, user = await self.bot.wait_for(
                     "reaction_add", check=check, timeout=end - time()
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 return
 
             if user.id == BOT:
