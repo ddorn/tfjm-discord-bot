@@ -11,6 +11,7 @@ from io import StringIO
 from pprint import pprint
 from typing import Type, Dict, Union, Optional, List
 
+import aiohttp
 import discord
 import yaml
 from discord.ext import commands
@@ -275,7 +276,7 @@ class DiscordTirage(BaseTirage):
             table = """```
 ╔═════╦═════════╦═════════╦═════════╗
 ║     ║ Phase 1 ║ Phase 2 ║ Phase 3 ║
-║     ║   Pb {0.pb}  ║   Pb {0.pb}  ║   Pb {0.pb}  ║
+║     ║   Pb {0.pb}  ║   Pb {1.pb}  ║   Pb {2.pb}  ║
 ╠═════╬═════════╬═════════╬═════════╣
 ║ {0.name} ║   Def   ║   Rap   ║   Opp   ║
 ╠═════╬═════════╬═════════╬═════════╣
@@ -702,10 +703,16 @@ class TirageCog(Cog, name="Tirages"):
             else:
                 await tirage.show(ctx)
 
-    @draw_group.command(name="dump")
+    @draw_group.command(name="send")
     @commands.has_role(Role.DEV)
-    async def dump_cmd(self, ctx, tirage_id: int, poule="A", round: int = 1):
-        """Affiche un résumé succint d'un tirage."""
+    async def send_cmd(self, ctx, tirage_id: int, poule="A", round: int = 1):
+        """
+        Envoie les poules sur tfjm.org
+
+        Exemple:
+            `!draw send 42 B 1` - Envoie la poule B1 du tirage n°42.
+        """
+
         tirages = self.get_tirages()
 
         try:
@@ -720,7 +727,10 @@ class TirageCog(Cog, name="Tirages"):
             )
         else:
             poule = get(tirage.poules, poule=poule, rnd=round - 1)
-            msg = f"{round};" + ";".join(
+            if poule is None:
+                raise TfjmError("Il n'y a pas de telle poule dans ce tirage")
+
+            data = f"{round};" + ";".join(
                 x
                 for t in tirage.poules[poule]
                 for x in (
@@ -728,8 +738,21 @@ class TirageCog(Cog, name="Tirages"):
                     tirage.teams[t].accepted_problems[round - 1][0],
                 )
             )
+            data = f'"{data}"'
 
-            await ctx.send(msg)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://inscription.tfjm.org/api/pool/",
+                    headers={
+                        "Authorization": f"Token {TFJM_TOKEN}",
+                        "Content-type": "application/json",
+                    },
+                    data=data,
+                ) as resp:
+                    await ctx.send(str(resp))
+                    await ctx.send(str(resp.status))
+                    await ctx.send(str(resp.reason))
+                    await ctx.send(await resp.content.read())
 
 
 def setup(bot):
