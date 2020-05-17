@@ -71,6 +71,7 @@ class Role:
     CAPTAIN = "Capitaine"
     PARTICIPANT = "Participant"
     TOURIST = "Touriste"
+    PRETRESSE_CALINS = "Grande prêtresse des câlins"
 
 
 class Emoji:
@@ -90,6 +91,7 @@ class File:
     JOKES = TOP_LEVEL / "data" / "jokes"
     JOKES_V2 = TOP_LEVEL / "data" / "jokesv2"
     MEMES = TOP_LEVEL / "data" / "memes"
+    HUGS = TOP_LEVEL / "data" / "hugs"
 
 
 with open(File.TOP_LEVEL / "data" / "problems") as f:

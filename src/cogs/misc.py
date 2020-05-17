@@ -3,7 +3,9 @@ import datetime
 import io
 import itertools
 import random
+import re
 import urllib
+from collections import defaultdict, Counter
 from dataclasses import dataclass, field
 from operator import attrgetter
 from time import time
@@ -47,12 +49,37 @@ class Joke(yaml.YAMLObject):
     file: str = None
 
 
+HUG_RE = re.compile(r"^(?P<hugger>\d+) -> (?P<hugged>\d+) \| (?P<text>.*)$")
+
+
+class Hug:
+    def __init__(self, hugger, hugged, text):
+        self.hugger = hugger
+        self.hugged = hugged
+        self.text = text
+
+    @classmethod
+    def from_str(cls, line: str):
+        match = HUG_RE.match(line)
+        if not match:
+            raise ValueError(f"'{line}' is not a valid hug format.")
+        hugger = int(match.group("hugger"))
+        hugged = int(match.group("hugged"))
+        text = match.group("text")
+
+        return cls(hugger, hugged, text)
+
+    def __repr__(self):
+        return f"{self.hugger} -> {self.hugged} | {self.text}"
+
+
 class MiscCog(Cog, name="Divers"):
     def __init__(self, bot: CustomBot):
         self.bot = bot
         self.show_hidden = False
         self.verify_checks = True
         self.computing = False
+        self.hugs = self.get_hugs()
 
     @command(
         name="choose",
@@ -133,11 +160,45 @@ class MiscCog(Cog, name="Divers"):
     async def pew(self, ctx):
         await ctx.send("Tu t'es raté ! Kwaaack :duck:")
 
-    @command(aliases=["<3"])
-    async def hug(self, ctx, who="everyone"):
-        """Fait un câlin à quelqu'un."""
+    @command(aliases=["pong"])
+    async def ping(self, ctx):
+        """Affiche la latence avec le bot."""
+        msg: discord.Message = ctx.message
+        ping = msg.created_at.timestamp()
+        msg: discord.Message = await ctx.send("Pong !")
+        pong = time()
 
-        if who != "everyone":
+        # 7200 is because we are UTC+2
+        delta = pong - ping - 7200
+
+        await msg.edit(content=f"Pong ! Ça a pris {int(1000 * (delta))}ms")
+
+    @command(name="fan", aliases=["join", "adhere"], hidden=True)
+    async def fan_club_cmd(self, ctx: Context, who: Member):
+        """Permet de rejoindre le fan-club d'Ananas ou Citron Vert."""
+        role_id = FAN_CLUBS.get(who.id, None)
+        role = get(ctx.guild.roles, id=role_id)
+
+        if role is not None:
+            await ctx.author.add_roles(role)
+            await ctx.send(f"Bienvenue au {role.mention} !! :tada:")
+        else:
+            await ctx.send(
+                f"{who.mention} n'a pas encore de fan club. Peut-être qu'un jour "
+                f"iel sera un membre influent du CNO ?"
+            )
+
+    # ----------------- Hugs ---------------- #
+
+    @command(aliases=["<3"])
+    async def hug(self, ctx: Context, who="everyone"):
+        """Fait un câlin à quelqu'un. :heart:"""
+
+        if who == "everyone":
+            who = ctx.guild.default_role
+        elif who == "back":
+            return await self.hug_back(ctx)
+        else:
             try:
                 who = await RoleConverter().convert(ctx, who)
             except BadArgument:
@@ -145,8 +206,6 @@ class MiscCog(Cog, name="Divers"):
                     who = await MemberConverter().convert(ctx, who)
                 except BadArgument:
                     return await ctx.send(f'Il n\'y a pas de "{who}". :man_shrugging:')
-        else:
-            who = ctx.guild.default_role
         who: Union[discord.Role, Member]
 
         bonuses = [
@@ -168,6 +227,22 @@ class MiscCog(Cog, name="Divers"):
         ):
             bonuses += ["Il s'agit surement là d'une tentative de corruption !"]
 
+        if has_role(ctx.author, Role.PRETRESSE_CALINS):
+            bonuses += [
+                "C'est le plus beau calin du monde :smiling_face_with_3_hearts: :smiling_face_with_3_hearts:",
+            ]
+
+        if who.id == DIEGO:
+            bonuses += [
+                "Tiens... Ça sent le mojito... :lemon:",
+                ":yellow_heart: :lemon: :yellow_heart:",
+            ]
+
+        if (who.id == DIEGO and not get(ctx.author.roles, id=FAN_CLUBS[DIEGO])) or (
+            who.id == ANANAS and not get(ctx.author.roles, id=FAN_CLUBS[ANANAS])
+        ):
+            bonuses += ["Tu devrais rejoindre son fan club :wink:"]
+
         if who == ctx.author:
             msg = f"{who.mention} se fait un auto-calin !"
             bonuses += [
@@ -184,6 +259,7 @@ class MiscCog(Cog, name="Divers"):
                 "Tout le monde est heureux maintenant !",
             ]
         elif who == self.bot.user:
+            msg = f"{ctx.author.mention} me fait un gros câliiiiin !"
             bonuses += ["Je trouve ça très bienveillant <3"]
         else:
             msg = f"{ctx.author.mention} fait un gros câlin à {who.mention} !"
@@ -191,6 +267,7 @@ class MiscCog(Cog, name="Divers"):
                 f"Mais {who.mention} n'apprécie pas...",
                 "Et ils s'en vont chasser des canards ensemble :wink:",
                 "Oh ! Iel sent bon...",
+                "Et moi quand est ce que j'ai le droit à un calin ?",
                 f"{who.mention} a serré tellment fort qu'iel vous a coupé en deux :scream:",
                 f"{who.mention} propose à {ctx.author.mention} de se revoir autour d'une :pizza: !",
                 "Les drones du commissaire Winston passent par là et vous ordonnent d'arrêter.",
@@ -200,31 +277,98 @@ class MiscCog(Cog, name="Divers"):
 
         bonus = random.choice(bonuses)
 
-        await ctx.send(f"{msg} {bonus}")
+        text = f"{msg} {bonus}"
+        self.add_hug(ctx.author.id, who.id, text)
 
-    @command(aliases=["pong"])
-    async def ping(self, ctx):
-        """Affiche la latence avec le bot."""
-        ping = time()
-        msg: discord.Message = await ctx.send("Pong !")
-        pong = time()
+        await ctx.send(text)
 
-        await msg.edit(content=f"Pong ! Ça a pris {int(1000 * (pong - ping))}ms")
+    async def hug_back(self, ctx: Context):
+        hugger = ctx.author.id
 
-    @command(name="fan", aliases=["join", "adhere"], hidden=True)
-    async def fan_club_cmd(self, ctx: Context, who: Member):
-        """Permet de rejoindre le fan-club d'Ananas ou Citron Vert."""
-        role_id = FAN_CLUBS.get(who.id, None)
-        role = get(ctx.guild.roles, id=role_id)
-
-        if role is not None:
-            await ctx.author.add_roles(role)
-            await ctx.send(f"Bienvenue au {role.mention} !! :tada:")
-        else:
-            await ctx.send(
-                f"{who.mention} n'a pas encore de fan club. Peut-être qu'un jour "
-                f"iel sera un membre influent du CNO ?"
+        last_hug: Hug = get(reversed(self.hugs), hugged=hugger)
+        if not last_hug:
+            return await ctx.send(
+                f"Personne n'a jamais fait de calin à {ctx.author.mention}, il faut y remédier !"
             )
+
+        if "coupé en deux" in last_hug.text:
+            return await ctx.send(
+                "Tu ne vas quand même pas faire un câlin à quelqu'un "
+                "que tu viens de couper en deux !"
+            )
+
+        await ctx.invoke(self.hug, str(last_hug.hugger))
+
+    @command(name="hug-stats")
+    @commands.has_role(Role.PRETRESSE_CALINS)
+    async def hugs_stats_cmd(self, ctx: Context):
+
+        medals = [
+            ":first_place:",
+            ":second_place:",
+            ":third_place:",
+            ":medal:",
+            ":military_medal:",
+        ]
+        ranks = ["Gros Nounours", "Petit Panda", "Ours en peluche"]
+
+        embed = discord.Embed(
+            title="Prix du plus câliné", color=discord.Colour.magenta(),
+        )
+
+        stats = Counter()
+        for h in self.hugs:
+            if h.hugged != h.hugger:
+                stats[h.hugged] += 1
+
+        top = stats.most_common(15)
+
+        for i in range(3):
+            m = medals[i]
+            r = ranks[i]
+            id, qte = top[i]
+            who = self.name_for(ctx, id)
+
+            embed.add_field(name=f"{m} - {r}", value=f"{who} : {qte}  :heart:")
+
+        top4to7 = "\n ".join(
+            f"{medals[3]} {self.name_for(ctx, id)} : {qte}  :orange_heart:"
+            for id, qte in top[3:8]
+        )
+        embed.add_field(name="Apprentis peluches", value=top4to7)
+
+        top8to13 = "\n".join(
+            f"{medals[4]} {self.name_for(ctx, id)} : {qte}  :yellow_heart:"
+            for id, qte in top[8:13]
+        )
+        embed.add_field(name="Pelotte de laine", value=top8to13)
+        await ctx.send(embed=embed)
+
+    def name_for(self, ctx, member_or_role_id):
+        memb = ctx.guild.get_member(member_or_role_id)
+        if memb is not None:
+            name = memb.mention
+        else:
+            name = ctx.guild.get_role(member_or_role_id).mention
+
+        return name
+
+    def hugger_tot(self, hugger: int):
+        return sum(1 for h in self.hugs if h.hugger == hugger)
+
+    def hugged_tot(self, hugged: int):
+        return sum(1 for h in self.hugs if h.hugged == hugged)
+
+    def get_hugs(self):
+        File.HUGS.touch()
+        lines = File.HUGS.read_text().strip().splitlines()
+        return [Hug.from_str(l) for l in lines]
+
+    def add_hug(self, hugger: int, hugged: int, text):
+        File.HUGS.touch()
+        with open(File.HUGS, "a") as f:
+            f.write(f"{hugger} -> {hugged} | {text}\n")
+        self.hugs.append(Hug(hugger, hugged, text))
 
     # ---------------- Jokes ---------------- #
 
@@ -242,13 +386,13 @@ class MiscCog(Cog, name="Divers"):
             yaml.safe_dump_all(jokes, f)
 
     @group(name="joke", invoke_without_command=True)
-    async def joke(self, ctx: Context, id: int = None):
+    async def joke(self, ctx: Context):
 
         m: discord.Message = ctx.message
         await m.delete()
 
         jokes = self.load_jokes()
-        if id is not None:
+        if False:
             joke_id = id
             jokes = sorted(
                 jokes, key=lambda j: len(j.likes) - len(j.dislikes), reverse=True
@@ -290,6 +434,8 @@ class MiscCog(Cog, name="Divers"):
             file: discord.Attachment = message.attachments[0]
             joke.file = str(f"{joke_id}-{file.filename}")
             await file.save(File.MEMES / joke.file)
+        elif not msg.strip():
+            return "Tu ne peux pas ajouter une blague vide..."
 
         jokes.append(joke)
         self.save_jokes(jokes)
@@ -306,7 +452,7 @@ class MiscCog(Cog, name="Divers"):
             )
 
         start = time()
-        end = start + 24 * 60 * 60
+        end = start + 24 * 60 * 60 * 5  # 5 days
         while time() < end:
 
             try:
@@ -327,7 +473,7 @@ class MiscCog(Cog, name="Divers"):
 
             self.save_jokes(jokes)
 
-    @joke.command(name="top", hidden=True)
+    @joke.command(name="top", hidden=True, enabled=False)
     async def best_jokes(self, ctx: Context):
         """Affiche le palmares des blagues."""
 

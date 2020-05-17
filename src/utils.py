@@ -1,4 +1,5 @@
 from functools import wraps
+from typing import Union
 
 import psutil
 from discord.ext.commands import Bot
@@ -17,10 +18,13 @@ def french_join(l):
     return f"{start} et {l[-1]}"
 
 
-def has_role(member, role: str):
+def has_role(member, role: Union[str, tuple]):
     """Return whether the member has a role with this name."""
 
-    return any(r.name == role for r in member.roles)
+    if isinstance(role, str):
+        return any(r.name == role for r in member.roles)
+    else:
+        return any(r.name == rol for r in member.roles for rol in role)
 
 
 def send_and_bin(f):
