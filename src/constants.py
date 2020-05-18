@@ -79,6 +79,7 @@ class Role:
 
 
 class Emoji:
+    HEART = "❤️"
     JOY = "😂"
     SOB = "😭"
     BIN = "🗑️"

@@ -312,10 +312,17 @@ class MiscCog(Cog, name="Divers"):
 
         await ctx.invoke(self.hug, str(last_hug.hugger))
 
-    @command(name="hug-stats")
+    @command(name="hug-stats", aliases=["hs"])
     @commands.has_role(Role.PRETRESSE_CALINS)
-    async def hugs_stats_cmd(self, ctx: Context):
+    async def hugs_stats_cmd(self, ctx: Context, who: Member = None):
         """(prêtresse des calins) Affiche qui est le plus câliné """
+
+        if who is None:
+            await self.send_all_hug_stats(ctx)
+        else:
+            await self.send_hugs_stats_for(ctx, who)
+
+    async def send_all_hug_stats(self, ctx):
         medals = [
             ":first_place:",
             ":second_place:",
@@ -326,7 +333,9 @@ class MiscCog(Cog, name="Divers"):
         ranks = ["Gros Nounours", "Petit Panda", "Ours en peluche"]
 
         embed = discord.Embed(
-            title="Prix du plus câliné", color=discord.Colour.magenta(),
+            title="Prix du plus câliné",
+            color=discord.Colour.magenta(),
+            description=f"Nombre de total de câlins : {len(self.hugs)} {Emoji.HEART}",
         )
 
         diffs = defaultdict(set)
@@ -360,7 +369,50 @@ class MiscCog(Cog, name="Divers"):
             for id, qte in top[8:13]
         )
         embed.add_field(name="Pelote de laine de canard", value=top8to13)
+
         await ctx.send(embed=embed)
+
+    async def send_hugs_stats_for(self, ctx: Context, who: Member):
+        embed = discord.Embed(
+            title=f"Calins de {who.display_name}", color=discord.Colour.magenta()
+        )
+
+        w = who.id
+
+        given = [h.hugged for h in self.hugs if h.hugger == w and h.hugged != w]
+        received = [h.hugger for h in self.hugs if h.hugged == w and h.hugger != w]
+        auto = [h for h in self.hugs if h.hugged == w == h.hugger]
+        cut = [h for h in self.hugs if h.hugger == w and "coupé en deux" in h.text]
+        infos = {
+            "Câlins donnés": len(given),
+            "Câlins reçus": len(received),
+            "Personnes câlinées": len(set(given)),
+            "Câliné par": len(set(received)),
+            "Auto-câlins": len(auto),
+            "Coupé en deux": len(cut),
+        }
+
+        for f, v in infos.items():
+            embed.add_field(name=f, value=f"{v} {self.heart_for_stat(v)}")
+
+        await ctx.send(embed=embed)
+
+    def heart_for_stat(self, v):
+        hearts = [
+            ":broken_heart:",
+            ":green_heart:",
+            ":yellow_heart:",
+            ":orange_heart:",
+            ":heart:",
+            ":sparkling_heart:",
+        ]
+
+        if v <= 0:
+            return hearts[0]
+        elif v >= 2000:
+            return hearts[-1]
+        else:
+            return hearts[len(str(v)) - 1]
 
     def name_for(self, ctx, member_or_role_id):
         memb = ctx.guild.get_member(member_or_role_id)
