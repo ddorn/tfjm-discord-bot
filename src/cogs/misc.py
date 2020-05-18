@@ -225,7 +225,7 @@ class MiscCog(Cog, name="Divers"):
             else "J'en veux un autre ! :heart_eyes:",
             "Le·a pauvre, iel est tout·e rouge !"
             if not bot_hug
-            else "Un robot ne peut pas rougir, mais je crois que... :blush",
+            else "Un robot ne peut pas rougir, mais je crois que... :blush:",
             "Hihi, il gratte ton pull en laine ! :sheep:",
         ]
 
@@ -239,7 +239,7 @@ class MiscCog(Cog, name="Divers"):
         if has_role(ctx.author, Role.PRETRESSE_CALINS):
             bonuses += [
                 "C'est le plus beau calin du monde :smiling_face_with_3_hearts: :smiling_face_with_3_hearts:",
-                f"{who.mention} est subjugué ! :smiling_face_with_3_hearts:",
+                f"{who.mention} est subjugué·e ! :smiling_face_with_3_hearts:",
             ]
 
         if who.id == DIEGO:
@@ -289,6 +289,11 @@ class MiscCog(Cog, name="Divers"):
         self.add_hug(ctx.author.id, who.id, text)
 
         await ctx.send(text)
+
+        if bot_hug and random.random() > 0.9:
+            await asyncio.sleep(3.14159265358979323)
+            ctx.author = get(ctx.guild.members, id=self.bot.user.id)
+            await ctx.invoke(self.hug, "back")
 
     async def hug_back(self, ctx: Context):
         hugger = ctx.author.id
@@ -348,13 +353,13 @@ class MiscCog(Cog, name="Divers"):
             f"{medals[3]} {self.name_for(ctx, id)} : {qte}  :orange_heart:"
             for id, qte in top[3:8]
         )
-        embed.add_field(name="Apprentis peluches", value=top4to7)
+        embed.add_field(name="Apprenti peluche", value=top4to7)
 
         top8to13 = "\n".join(
             f"{medals[4]} {self.name_for(ctx, id)} : {qte}  :yellow_heart:"
             for id, qte in top[8:13]
         )
-        embed.add_field(name="Pelotte de laine", value=top8to13)
+        embed.add_field(name="Pelote de laine de canard", value=top8to13)
         await ctx.send(embed=embed)
 
     def name_for(self, ctx, member_or_role_id):
@@ -365,12 +370,6 @@ class MiscCog(Cog, name="Divers"):
             name = ctx.guild.get_role(member_or_role_id).mention
 
         return name
-
-    def hugger_tot(self, hugger: int):
-        return sum(1 for h in self.hugs if h.hugger == hugger)
-
-    def hugged_tot(self, hugged: int):
-        return sum(1 for h in self.hugs if h.hugged == hugged)
 
     def get_hugs(self):
         File.HUGS.touch()
