@@ -400,6 +400,7 @@ class MiscCog(Cog, name="Divers"):
 
     @group(name="joke", invoke_without_command=True, case_insensitive=True)
     async def joke(self, ctx: Context):
+        """Fait discretement une blague aléatoire."""
 
         m: discord.Message = ctx.message
         await m.delete()
@@ -534,7 +535,7 @@ class MiscCog(Cog, name="Divers"):
         commands = itertools.groupby(self.bot.walk_commands(), attrgetter("cog_name"))
 
         for cat_name, cat in commands:
-            cat = {c.qualified_name: c for c in cat if not isinstance(c, Group)}
+            cat = {c.qualified_name: c for c in cat}
             cat = await self.filter_commands(
                 ctx, list(cat.values()), sort=True, key=attrgetter("qualified_name")
             )

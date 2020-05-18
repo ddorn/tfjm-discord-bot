@@ -326,7 +326,7 @@ class TeamsCog(Cog, name="Teams"):
     @team.command(name="list")
     @commands.has_role(Role.CNO)
     async def list_cmd(self, ctx):
-        """(cno) Affiche les équipes de chaque tournoi présentes sur le discord."""
+        """(cno) Affiche les équipes présentes sur le discord."""
 
         embed = discord.Embed(title="Liste des équipes", color=EMBED_COLOR)
 
