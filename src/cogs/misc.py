@@ -7,6 +7,7 @@ import re
 import urllib
 from collections import defaultdict, Counter
 from dataclasses import dataclass, field
+from functools import partial
 from operator import attrgetter, itemgetter
 from time import time
 from typing import List, Set, Union
@@ -338,15 +339,33 @@ class MiscCog(Cog, name="Divers"):
             description=f"Nombre de total de câlins : {len(self.hugs)} {Emoji.HEART}",
         )
 
-        diffs = defaultdict(set)
+        everyone = ctx.guild.default_role.id
+        everyone_hugs = 0
+        everyone_diff = set()
         stats = Counter()
+        diffs = defaultdict(set)
         for h in self.hugs:
-            diffs[h.hugged].add(h.hugger)
-            if h.hugged != h.hugger:
-                stats[h.hugged] += 1
+            if h.hugged == everyone:
+                everyone_hugs += 1
+                everyone_diff.add(h.hugger)
+            else:
+                if h.hugged != h.hugger:
+                    stats[h.hugged] += 1
+                    diffs[h.hugged].add(h.hugger)
 
-        for h, qte in diffs.items():
-            stats[h] += 42 * len(qte)
+                role: discord.Role = get(ctx.guild.roles, id=h.hugged)
+                if role is not None:
+                    for m in role.members:
+                        if m.id != h.hugger:
+                            stats[m.id] += 1
+                            diffs[m.id].add(h.hugger)
+
+        for m, d in diffs.items():
+            if m == self.bot.user.id:
+                print(everyone_diff)
+                print(d)
+                print(everyone_diff.union(d))
+            stats[m] += len(everyone_diff.union(d)) * 42 + everyone_hugs
 
         top = sorted(list(stats.items()), key=itemgetter(1), reverse=True)
 
@@ -377,17 +396,15 @@ class MiscCog(Cog, name="Divers"):
             title=f"Calins de {who.display_name}", color=discord.Colour.magenta()
         )
 
-        w = who.id
-
-        given = [h.hugged for h in self.hugs if h.hugger == w and h.hugged != w]
-        received = [h.hugger for h in self.hugs if h.hugged == w and h.hugger != w]
-        auto = [h for h in self.hugs if h.hugged == w == h.hugger]
-        cut = [h for h in self.hugs if h.hugger == w and "coupé en deux" in h.text]
+        given = self.hugs_given(ctx, who.id)
+        received = self.hugs_received(ctx, who.id)
+        auto = self.auto_hugs(ctx, who.id)
+        cut = [h for h in given if "coupé en deux" in h.text]
         infos = {
             "Câlins donnés": len(given),
             "Câlins reçus": len(received),
-            "Personnes câlinées": len(set(given)),
-            "Câliné par": len(set(received)),
+            "Personnes câlinées": len(set(h.hugged for h in given)),
+            "Câliné par": len(set(h.hugger for h in received)),
             "Auto-câlins": len(auto),
             "Coupé en deux": len(cut),
         }
@@ -396,6 +413,20 @@ class MiscCog(Cog, name="Divers"):
             embed.add_field(name=f, value=f"{v} {self.heart_for_stat(v)}")
 
         await ctx.send(embed=embed)
+
+    def ris(self, ctx: Context, id, role_or_member_id):
+        """Whether the id is the same member or a member that has the given role."""
+        if id == role_or_member_id:
+            return True
+
+        member: Member = get(ctx.guild.members, id=id)
+
+        if member is None:
+            return False
+
+        role = get(member.roles, id=role_or_member_id)
+
+        return role is not None
 
     def heart_for_stat(self, v):
         hearts = [
@@ -412,7 +443,7 @@ class MiscCog(Cog, name="Divers"):
         elif v >= 2000:
             return hearts[-1]
         else:
-            return hearts[len(str(v)) - 1]
+            return hearts[len(str(v))]
 
     def name_for(self, ctx, member_or_role_id):
         memb = ctx.guild.get_member(member_or_role_id)
@@ -422,6 +453,23 @@ class MiscCog(Cog, name="Divers"):
             name = ctx.guild.get_role(member_or_role_id).mention
 
         return name
+
+    def score_for(self, ctx, member_id):
+        received = self.hugs_received(ctx, member_id)
+        diffs = set(h.hugger for h in received)
+        return 42 * len(diffs) + len(received)
+
+    def hugs_given(self, ctx, who_id):
+        eq = partial(self.ris, ctx, who_id)
+        return [h for h in self.hugs if eq(h.hugger) and not eq(h.hugged)]
+
+    def hugs_received(self, ctx, who_id):
+        eq = partial(self.ris, ctx, who_id)
+        return [h for h in self.hugs if eq(h.hugged) and not eq(h.hugger)]
+
+    def auto_hugs(self, ctx, who_id):
+        eq = partial(self.ris, ctx, who_id)
+        return [h for h in self.hugs if eq(h.hugged) and eq(h.hugger)]
 
     def get_hugs(self):
         File.HUGS.touch()
