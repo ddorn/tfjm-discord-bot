@@ -7,7 +7,7 @@ import re
 import urllib
 from collections import defaultdict, Counter
 from dataclasses import dataclass, field
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from time import time
 from typing import List, Set, Union
 
@@ -190,7 +190,7 @@ class MiscCog(Cog, name="Divers"):
 
     # ----------------- Hugs ---------------- #
 
-    @command(aliases=["<3"])
+    @command(aliases=["<3", "❤️", ":heart:"])
     async def hug(self, ctx: Context, who="everyone"):
         """Fait un câlin à quelqu'un. :heart:"""
 
@@ -205,8 +205,13 @@ class MiscCog(Cog, name="Divers"):
                 try:
                     who = await MemberConverter().convert(ctx, who)
                 except BadArgument:
-                    return await ctx.send(f'Il n\'y a pas de "{who}". :man_shrugging:')
+                    return await ctx.send(
+                        discord.utils.escape_mentions(
+                            f'Il n\'y a pas de "{who}". :man_shrugging:'
+                        )
+                    )
         who: Union[discord.Role, Member]
+        bot_hug = who == self.bot.user
 
         bonuses = [
             "C'est trop meuuuugnon !",
@@ -214,9 +219,13 @@ class MiscCog(Cog, name="Divers"):
             ":hugging:",
             ":smiling_face_with_3_hearts:",
             "Oh wiiii",
-            "Iel se sent désormais prêt à travailler à fond sur les solutions de AQT",
-            f"{who.mention} en redemande un !",
-            "Le·a pauvre, iel est tout·e rouge !",
+            f"{'Je me sens' if bot_hug else 'Iel se sent'} désormais prêt à travailler à fond sur les solutions de AQT",
+            f"{who.mention} en redemande un !"
+            if not bot_hug
+            else "J'en veux un autre ! :heart_eyes:",
+            "Le·a pauvre, iel est tout·e rouge !"
+            if not bot_hug
+            else "Un robot ne peut pas rougir, mais je crois que... :blush",
             "Hihi, il gratte ton pull en laine ! :sheep:",
         ]
 
@@ -230,17 +239,16 @@ class MiscCog(Cog, name="Divers"):
         if has_role(ctx.author, Role.PRETRESSE_CALINS):
             bonuses += [
                 "C'est le plus beau calin du monde :smiling_face_with_3_hearts: :smiling_face_with_3_hearts:",
+                f"{who.mention} est subjugué ! :smiling_face_with_3_hearts:",
             ]
 
         if who.id == DIEGO:
             bonuses += [
                 "Tiens... Ça sent le mojito... :lemon:",
-                ":yellow_heart: :lemon: :yellow_heart:",
+                ":green_heart: :lemon: :green_heart:",
             ]
 
-        if (who.id == DIEGO and not get(ctx.author.roles, id=FAN_CLUBS[DIEGO])) or (
-            who.id == ANANAS and not get(ctx.author.roles, id=FAN_CLUBS[ANANAS])
-        ):
+        if who.id in FAN_CLUBS and not get(ctx.author.roles, id=FAN_CLUBS[who.id]):
             bonuses += ["Tu devrais rejoindre son fan club :wink:"]
 
         if who == ctx.author:
@@ -258,7 +266,7 @@ class MiscCog(Cog, name="Divers"):
                 "C'est pas très COVID-19 tout ça !",
                 "Tout le monde est heureux maintenant !",
             ]
-        elif who == self.bot.user:
+        elif bot_hug:
             msg = f"{ctx.author.mention} me fait un gros câliiiiin !"
             bonuses += ["Je trouve ça très bienveillant <3"]
         else:
@@ -302,7 +310,7 @@ class MiscCog(Cog, name="Divers"):
     @command(name="hug-stats")
     @commands.has_role(Role.PRETRESSE_CALINS)
     async def hugs_stats_cmd(self, ctx: Context):
-
+        """(prêtresse des calins) Affiche qui est le plus câliné """
         medals = [
             ":first_place:",
             ":second_place:",
@@ -316,12 +324,17 @@ class MiscCog(Cog, name="Divers"):
             title="Prix du plus câliné", color=discord.Colour.magenta(),
         )
 
+        diffs = defaultdict(set)
         stats = Counter()
         for h in self.hugs:
+            diffs[h.hugged].add(h.hugger)
             if h.hugged != h.hugger:
                 stats[h.hugged] += 1
 
-        top = stats.most_common(15)
+        for h, qte in diffs.items():
+            stats[h] += 42 * len(qte)
+
+        top = sorted(list(stats.items()), key=itemgetter(1), reverse=True)
 
         for i in range(3):
             m = medals[i]
