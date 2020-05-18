@@ -125,7 +125,7 @@ class DevCog(Cog, name="Dev tools"):
             await ctx.send(f":tada: L'extension **{name}** a bien été ajoutée !")
 
     # noinspection PyUnreachableCode
-    @command(name="setup", hidden=True)
+    @command(name="setup")
     @has_role(Role.DEV)
     async def setup_roles(self, ctx):
         """
@@ -187,7 +187,7 @@ class DevCog(Cog, name="Dev tools"):
     @command(name="send")
     @has_role(Role.DEV)
     async def send_cmd(self, ctx, *msg):
-        """Envoie un message."""
+        """(dev) Envoie un message."""
         await ctx.message.delete()
         await ctx.send(" ".join(msg))
 

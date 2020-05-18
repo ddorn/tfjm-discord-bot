@@ -15,7 +15,7 @@ tirages = {}
 
 
 def start():
-    bot = CustomBot(("! ", "!"))
+    bot = CustomBot(("! ", "!"), case_insensitive=True)
 
     @bot.event
     async def on_ready():

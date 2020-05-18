@@ -115,7 +115,7 @@ class TeamsCog(Cog, name="Teams"):
 
         return f"{ctx.author.mention} à été ajouté comme spectateur dans à {tournoi}."
 
-    @group(name="team", invoke_without_command=True)
+    @group(name="team", invoke_without_command=True, case_insensitive=True, hidden=True)
     async def team(self, ctx):
         """Groupe de commandes pour la gestion des équipes."""
 

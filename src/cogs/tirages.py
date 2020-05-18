@@ -510,7 +510,7 @@ class TirageCog(Cog, name="Tirages"):
     @commands.command(name="dice-all", aliases=["da"])
     @commands.has_role(Role.DEV)
     async def dice_all_cmd(self, ctx, *teams):
-        """Lance un dé pour chaque equipe afin de tester les tirages."""
+        """(dev) Lance un dé pour chaque equipe afin de tester les tirages."""
         channel = ctx.channel.id
         if channel in self.tirages:
             for t in teams:
@@ -565,7 +565,13 @@ class TirageCog(Cog, name="Tirages"):
 
     # ---------- Commandes du groupe draw ----------- #
 
-    @group(name="draw", aliases=["d", "tirage"], invoke_without_command=True)
+    @group(
+        name="draw",
+        aliases=["d", "tirage"],
+        invoke_without_command=True,
+        case_insensitive=True,
+        hidden=True,
+    )
     async def draw_group(self, ctx: Context) -> None:
         """Groupe de commandes pour les tirages."""
 
@@ -633,26 +639,6 @@ class TirageCog(Cog, name="Tirages"):
         else:
             await ctx.send("Il n'y a pas de tirage en cours.")
 
-    #
-    # @draw_group.command(name="skip", aliases=["s"])
-    # @commands.has_role(Role.DEV)
-    # async def draw_skip(self, ctx, *teams: discord.Role):
-    #     """(dev) Passe certaines phases du tirage."""
-    #     channel = ctx.channel.id
-    #     self.tirages[channel] = tirage = Tirage(ctx, channel, teams)
-    #
-    #     tirage.phase = TiragePhase(tirage, round=1)
-    #     for i, team in enumerate(tirage.teams):
-    #         team.tirage_order = [i + 1, i + 1]
-    #         team.passage_order = [i + 1, i + 1]
-    #         team.accepted_problems = [PROBLEMS[i], PROBLEMS[-i - 1]]
-    #     tirage.teams[0].rejected = [{PROBLEMS[3]}, set(PROBLEMS[4:8])]
-    #     tirage.teams[1].rejected = [{PROBLEMS[7]}, set()]
-    #
-    #     await ctx.send(f"Skipping to {tirage.phase.__class__.__name__}.")
-    #     await tirage.phase.start(ctx)
-    #     await tirage.update_phase(ctx)
-
     def get_tirages(self) -> Dict[int, BaseTirage]:
         return DiscordTirage.load_all()
 
@@ -706,7 +692,7 @@ class TirageCog(Cog, name="Tirages"):
     @commands.has_role(Role.DEV)
     async def send_cmd(self, ctx, tirage_id: int, poule="A", round: int = 1):
         """
-        Envoie les poules sur tfjm.org
+        (dev) Envoie les poules sur tfjm.org
 
         Exemple:
             `!draw send 42 B 1` - Envoie la poule B1 du tirage n°42.

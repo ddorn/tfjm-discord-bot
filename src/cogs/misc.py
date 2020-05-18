@@ -398,7 +398,7 @@ class MiscCog(Cog, name="Divers"):
         with open(File.JOKES_V2, "w") as f:
             yaml.safe_dump_all(jokes, f)
 
-    @group(name="joke", invoke_without_command=True)
+    @group(name="joke", invoke_without_command=True, case_insensitive=True)
     async def joke(self, ctx: Context):
 
         m: discord.Message = ctx.message
