@@ -21,7 +21,7 @@ from ptpython.repl import embed
 from src.constants import *
 from src.core import CustomBot
 from src.errors import TfjmError
-from src.utils import fg
+from src.utils import fg, french_join
 
 COGS_SHORTCUTS = {
     "bt": "src.base_tirage",
@@ -136,10 +136,22 @@ class DevCog(Cog, name="Dev tools"):
     # noinspection PyUnreachableCode
     @command(name="setup")
     @has_role(Role.DEV)
-    async def setup_roles(self, ctx):
+    async def setup_roles(self, ctx: Context, *teams: discord.Role):
         """
         (dev) Commande temporaire pour setup le serveur.
         """
+        return
+        finalist = get(ctx.guild.roles, name=Role.FINALISTE)
+        assert finalist
+
+        for t in teams:
+            m: discord.Member
+            for m in t.members:
+                await m.add_roles(finalist)
+
+        await ctx.send(
+            f"{french_join(t.mention for t in teams)} ont été ajouté en finale !"
+        )
 
         return
         guild: discord.Guild = ctx.guild
@@ -213,12 +225,10 @@ class DevCog(Cog, name="Dev tools"):
         await channel.delete_messages(to_delete)
         await ctx.message.delete()
 
-    @command(name="eval", aliases=["e"])
-    @is_owner()
-    async def eval_cmd(self, ctx: Context):
-        """"""
-        msg: Message = ctx.message
-        guild: discord.Guild = ctx.guild
+    def eval(self, msg: Message) -> discord.Embed:
+        guild: discord.Guild = msg.guild
+        roles = guild.roles
+        members = guild.members
 
         query = re.match(RE_QUERY, msg.content).group("query")
 
@@ -258,7 +268,36 @@ class DevCog(Cog, name="Dev tools"):
             embed = discord.Embed(title="Result", color=discord.Colour.green())
             embed.add_field(name="Query", value=f"```py\n{query}```", inline=False)
             embed.add_field(name="Value", value=f"```py\n{out.read()}```", inline=False)
-        await ctx.send(embed=embed)
+        embed.set_footer(text="You may edit your message.")
+        return embed
+
+    @command(name="eval", aliases=["e"])
+    @is_owner()
+    async def eval_cmd(self, ctx: Context):
+        """"""
+        embed = self.eval(ctx.message)
+        resp = await ctx.send(embed=embed)
+
+        def check(before, after):
+            return after.id == ctx.message.id
+
+        while True:
+            try:
+                before, after = await self.bot.wait_for(
+                    "message_edit", check=check, timeout=600
+                )
+            except asyncio.TimeoutError:
+                break
+
+            embed = self.eval(after)
+            await resp.edit(embed=embed)
+
+        # Remove the "You may edit your message"
+        embed.set_footer()
+        try:
+            await resp.edit(embed=embed)
+        except discord.NotFound:
+            pass
 
     @Cog.listener()
     async def on_message(self, msg: Message):

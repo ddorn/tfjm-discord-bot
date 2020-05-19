@@ -62,6 +62,7 @@ TOURNOIS = [
     "Tours",
     "Bordeaux-Nancy",
     "Rennes",
+    "Finale",
 ]
 
 
@@ -73,6 +74,7 @@ class Role:
     JURY = tuple(f"Jury {t}" for t in TOURNOIS)
     BENEVOLE = "Bénévole"
     CAPTAIN = "Capitaine"
+    FINALISTE = "Finaliste"
     PARTICIPANT = "Participant"
     TOURIST = "Touriste"
     PRETRESSE_CALINS = "Grande prêtresse des câlins"

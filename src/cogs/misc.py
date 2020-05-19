@@ -8,6 +8,7 @@ import urllib
 from collections import defaultdict, Counter
 from dataclasses import dataclass, field
 from functools import partial
+from math import log
 from operator import attrgetter, itemgetter
 from time import time
 from typing import List, Set, Union
@@ -393,7 +394,7 @@ class MiscCog(Cog, name="Divers"):
 
     async def send_hugs_stats_for(self, ctx: Context, who: Member):
         embed = discord.Embed(
-            title=f"Calins de {who.display_name}", color=discord.Colour.magenta()
+            title=f"Câlins de {who.display_name}", color=discord.Colour.magenta()
         )
 
         given = self.hugs_given(ctx, who.id)
@@ -401,16 +402,19 @@ class MiscCog(Cog, name="Divers"):
         auto = self.auto_hugs(ctx, who.id)
         cut = [h for h in given if "coupé en deux" in h.text]
         infos = {
-            "Câlins donnés": len(given),
-            "Câlins reçus": len(received),
-            "Personnes câlinées": len(set(h.hugged for h in given)),
-            "Câliné par": len(set(h.hugger for h in received)),
-            "Auto-câlins": len(auto),
-            "Coupé en deux": len(cut),
+            "Câlins donnés": (len(given), 1),
+            "Câlins reçus": (len(received), 1),
+            "Personnes câlinées": (len(set(h.hugged for h in given)), 20),
+            "Câliné par": (len(set(h.hugger for h in received)), 30),
+            "Auto-câlins": ((len(auto)), 3),
+            "Morceaux": (len(cut), 30),
         }
 
-        for f, v in infos.items():
-            embed.add_field(name=f, value=f"{v} {self.heart_for_stat(v)}")
+        for f, (v, h_factor) in infos.items():
+            heart = self.heart_for_stat(v * h_factor)
+            if f == "Morceaux":
+                v = 2 ** v
+            embed.add_field(name=f, value=f"{v} {heart}")
 
         await ctx.send(embed=embed)
 
