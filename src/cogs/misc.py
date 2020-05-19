@@ -8,6 +8,7 @@ import urllib
 from collections import defaultdict, Counter
 from dataclasses import dataclass, field
 from functools import partial
+from itertools import groupby
 from math import log
 from operator import attrgetter, itemgetter
 from time import time
@@ -177,7 +178,7 @@ class MiscCog(Cog, name="Divers"):
 
     @command(name="fan", aliases=["join", "adhere"], hidden=True)
     async def fan_club_cmd(self, ctx: Context, who: Member):
-        """Permet de rejoindre le fan-club d'Ananas ou Citron Vert."""
+        """Permet de rejoindre un fan club existant."""
         role_id = FAN_CLUBS.get(who.id, None)
         role = get(ctx.guild.roles, id=role_id)
 
@@ -362,10 +363,6 @@ class MiscCog(Cog, name="Divers"):
                             diffs[m.id].add(h.hugger)
 
         for m, d in diffs.items():
-            if m == self.bot.user.id:
-                print(everyone_diff)
-                print(d)
-                print(everyone_diff.union(d))
             stats[m] += len(everyone_diff.union(d)) * 42 + everyone_hugs
 
         top = sorted(list(stats.items()), key=itemgetter(1), reverse=True)
@@ -392,10 +389,7 @@ class MiscCog(Cog, name="Divers"):
 
         await ctx.send(embed=embed)
 
-    async def send_hugs_stats_for(self, ctx: Context, who: Member):
-        embed = discord.Embed(
-            title=f"Câlins de {who.display_name}", color=discord.Colour.magenta()
-        )
+    async def send_hugs_stats_for(self, ctx: Context, who: discord.Member):
 
         given = self.hugs_given(ctx, who.id)
         received = self.hugs_received(ctx, who.id)
@@ -409,6 +403,26 @@ class MiscCog(Cog, name="Divers"):
             "Auto-câlins": ((len(auto)), 3),
             "Morceaux": (len(cut), 30),
         }
+
+        most_given = Counter(h.hugged for h in given).most_common(1)
+        most_received = Counter(h.hugger for h in received).most_common(1)
+        most_given = most_given[0] if most_given else (0, 0)
+        most_received = most_received[0] if most_received else (0, 0)
+
+        embed = discord.Embed(
+            title=f"Câlins de {who.display_name}",
+            color=discord.Colour.magenta(),
+            description=(
+                f"On peut dire que {who.mention} est très câlin·e, avec un score de "
+                f"{self.score_for(ctx, who.id)}. Iel a beaucoup câliné "
+                f"{self.name_for(ctx, most_given[0])} "
+                f"*({most_given[1]} :heart:)* et "
+                f"s'est beaucoup fait câliner par {self.name_for(ctx, most_received[0])} "
+                f"*({most_received[1]} :heart:)* !"
+            ),
+        )
+        user: discord.User = self.bot.get_user(who.id)
+        embed.set_thumbnail(url=user.avatar_url)
 
         for f, (v, h_factor) in infos.items():
             heart = self.heart_for_stat(v * h_factor)
@@ -454,7 +468,13 @@ class MiscCog(Cog, name="Divers"):
         if memb is not None:
             name = memb.mention
         else:
-            name = ctx.guild.get_role(member_or_role_id).mention
+            role = ctx.guild.get_role(member_or_role_id)
+            if role is None:
+                name = getattr(
+                    self.bot.get_user(member_or_role_id), "mention", "Personne"
+                )
+            else:
+                name = role.name
 
         return name
 

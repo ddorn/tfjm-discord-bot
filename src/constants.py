@@ -12,6 +12,7 @@ __all__ = [
     "TEAMS_CHANNEL_CATEGORY",
     "DIEGO",
     "ANANAS",
+    "YOHANN",
     "FAN_CLUBS",
     "BOT",
     "TOURNOIS",

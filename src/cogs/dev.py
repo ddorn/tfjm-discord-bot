@@ -1,8 +1,11 @@
 import asyncio
 import re
 import traceback
+from contextlib import redirect_stdout
 from io import StringIO
 from pprint import pprint
+from textwrap import indent
+from typing import Union
 
 import discord
 from discord import TextChannel, PermissionOverwrite, Message, ChannelType
@@ -35,13 +38,14 @@ COGS_SHORTCUTS = {
 }
 
 RE_QUERY = re.compile(
-    r"^! ?e(val)? (`{1,3}py(thon)?\n)?(?P<query>.*?)\n?(`{1,3})?\n?$", re.DOTALL
+    r"^! ?e(val)?[ \n]+(`{1,3}(py(thon)?\n)?)?(?P<query>.*?)\n?(`{1,3})?\n?$", re.DOTALL
 )
 
 
 class DevCog(Cog, name="Dev tools"):
     def __init__(self, bot: CustomBot):
         self.bot = bot
+        self.eval_locals = {}
 
     @command(name="interrupt")
     @has_role(Role.DEV)
@@ -225,57 +229,99 @@ class DevCog(Cog, name="Dev tools"):
         await channel.delete_messages(to_delete)
         await ctx.message.delete()
 
-    def eval(self, msg: Message) -> discord.Embed:
+    async def eval(self, msg: Message) -> discord.Embed:
         guild: discord.Guild = msg.guild
         roles = guild.roles
         members = guild.members
+        hugs_cog = self.bot.get_cog("Divers")
+        hugs = hugs_cog.hugs
+        channel: TextChannel = msg.channel
+        send = lambda text: asyncio.create_task(channel.send(text))
 
         query = re.match(RE_QUERY, msg.content).group("query")
 
         if not query:
             raise TfjmError("No query found.")
 
-        if "\n" in query:
+        if any(word in query for word in ("=", "return", "await", ":", "\n")):
             lines = query.splitlines()
-            if "return" not in lines[-1] and "=" not in lines[-1]:
+            if (
+                "return" not in lines[-1]
+                and "=" not in lines[-1]
+                and not lines[-1].startswith(" ")
+            ):
                 lines[-1] = f"return {lines[-1]}"
-            query = "\n    ".join(lines)
-            query = f"def q():\n    {query}\nresp = q()"
+                query = "\n".join(lines)
+            full_query = f"""async def query():
+    try:
+{indent(query, " " * 8)}
+    finally:
+        self.eval_locals.update(locals())
+"""
+        else:
+            full_query = query
+
+        globs = {**globals(), **locals(), **self.eval_locals}
+        stdout = StringIO()
 
         try:
-            if "\n" in query:
-                q = compile(query, filename="query.py", mode="exec")
-                globs = {**globals(), **locals()}
-                locs = {}
-                exec(query, globs, locs)
-                resp = locs["resp"]
-            else:
-                resp = eval(query, globals(), locals())
+            with redirect_stdout(stdout):
+                if "\n" in full_query:
+                    locs = {}
+                    exec(full_query, globs, locs)
+                    resp = await locs["query"]()
+                else:
+                    resp = eval(query, globs)
         except Exception as e:
             tb = StringIO()
             traceback.print_tb(e.__traceback__, file=tb)
-            tb.seek(0)
 
             embed = discord.Embed(title=str(e), color=discord.Colour.red())
-            embed.add_field(name="Query", value=f"```py\n{query}\n```", inline=False)
             embed.add_field(
-                name="Traceback", value=f"```py\n{tb.read()}```", inline=False
+                name="Query", value=f"```py\n{full_query}\n```", inline=False
+            )
+            embed.add_field(
+                name="Traceback", value=self.to_field_value(tb), inline=False
             )
         else:
             out = StringIO()
             pprint(resp, out)
-            out.seek(0)
+
             embed = discord.Embed(title="Result", color=discord.Colour.green())
-            embed.add_field(name="Query", value=f"```py\n{query}```", inline=False)
-            embed.add_field(name="Value", value=f"```py\n{out.read()}```", inline=False)
+            embed.add_field(name="Query", value=f"```py\n{full_query}```", inline=False)
+
+            value = self.to_field_value(out)
+            if resp is not None and value:
+                embed.add_field(name="Value", value=value, inline=False)
+
+        stdout = self.to_field_value(stdout)
+        if stdout:
+            embed.add_field(name="Standard output", value=stdout, inline=False)
+
         embed.set_footer(text="You may edit your message.")
         return embed
+
+    def to_field_value(self, string: Union[str, StringIO]):
+        if isinstance(string, StringIO):
+            string.seek(0)
+            string = string.read()
+
+        if not string:
+            return
+
+        if len(string) > 1000:
+            string = string[:500] + "\n...\n" + string[-500:]
+
+        return f"```py\n{string}```"
 
     @command(name="eval", aliases=["e"])
     @is_owner()
     async def eval_cmd(self, ctx: Context):
-        """"""
-        embed = self.eval(ctx.message)
+        """(dev) Evalue l'entrée."""
+
+        self.eval_locals["ctx"] = ctx
+
+        embed = await self.eval(ctx.message)
         resp = await ctx.send(embed=embed)
 
         def check(before, after):
@@ -289,7 +335,7 @@ class DevCog(Cog, name="Dev tools"):
             except asyncio.TimeoutError:
                 break
 
-            embed = self.eval(after)
+            embed = await self.eval(after)
             await resp.edit(embed=embed)
 
         # Remove the "You may edit your message"

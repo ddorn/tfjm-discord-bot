@@ -510,7 +510,7 @@ class TirageCog(Cog, name="Tirages"):
     @commands.command(name="dice-all", aliases=["da"])
     @commands.has_role(Role.DEV)
     async def dice_all_cmd(self, ctx, *teams):
-        """(dev) Lance un dé pour chaque equipe afin de tester les tirages."""
+        """(dev) Lance un dé pour chaque equipe en entrée."""
         channel = ctx.channel.id
         if channel in self.tirages:
             for t in teams:
