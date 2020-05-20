@@ -1,8 +1,14 @@
+import asyncio
+from pprint import pprint
 from functools import wraps
+from io import StringIO
 from typing import Union
 
+import discord
 import psutil
 from discord.ext.commands import Bot
+
+from src.constants import *
 
 
 def fg(text, color: int = 0xFFA500):
@@ -14,6 +20,10 @@ def fg(text, color: int = 0xFFA500):
 
 def french_join(l):
     l = list(l)
+    if not l:
+        return ""
+    if len(l) < 2:
+        return l[0]
     start = ", ".join(l[:-1])
     return f"{start} et {l[-1]}"
 
@@ -42,6 +52,45 @@ def send_and_bin(f):
             await cog.bot.wait_for_bin(ctx.author, msg)
 
     return wrapped
+
+
+async def pprint_send(ctx, *objs, **nobjs):
+    embed = discord.Embed(title="Debug")
+
+    nobjs.update({f"Object {i}": o for i, o in enumerate(objs)})
+
+    for name, obj in nobjs.items():
+        out = StringIO()
+        pprint(obj, out)
+        out.seek(0)
+        value = out.read()
+        if len(value) > 1000:
+            value = value[:500] + "\n...\n" + value[-500:]
+        value = f"```py\n{value}\n```"
+        embed.add_field(name=name, value=value)
+    return await ctx.send(embed=embed)
+
+
+async def confirm(ctx, bot, prompt):
+    msg: discord.Message = await ctx.send(prompt)
+    await msg.add_reaction(Emoji.CHECK)
+    await msg.add_reaction(Emoji.CROSS)
+
+    def check(reaction: discord.Reaction, u):
+        return (
+            ctx.author == u
+            and msg.id == reaction.message.id
+            and str(reaction.emoji) in (Emoji.CHECK, Emoji.CROSS)
+        )
+
+    reaction, u = await bot.wait_for("reaction_add", check=check)
+
+    if str(reaction) == Emoji.CHECK:
+        await msg.clear_reaction(Emoji.CROSS)
+        return True
+    else:
+        await msg.clear_reaction(Emoji.CHECK)
+        return False
 
 
 def start_time():

@@ -88,6 +88,7 @@ class Emoji:
     BIN = "🗑️"
     DICE = "🎲"
     CHECK = "✅"
+    CROSS = "❌"
     PLUS_1 = "👍"
     MINUS_1 = "👎"
 

@@ -15,6 +15,21 @@ import yaml
 from src.constants import *
 
 
+def skip_if(check, default=None):
+    """Decorator that skips running the function if the check is False, and returns the default."""
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if check(*args, **kwargs):
+                return default
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 class Event(asyncio.Event):
     def __init__(self, team: str, value: Union[bool, int, str]):
         super(Event, self).__init__()
@@ -145,14 +160,16 @@ class BaseTirage(yaml.YAMLObject):
                 return event
             event.clear()
 
-    async def run(self):
+    async def run(self, rounds=(0, 1)):
 
         await self.info_start()
 
-        self.poules = await self.make_poules()
+        for i in rounds:
+            new_poules = await self.make_poules(i)
+            self.poules.update(new_poules)
 
-        for poule in self.poules:
-            await self.draw_poule(poule)
+            for poule in new_poules:
+                await self.draw_poule(poule)
 
         await self.info_finish()
 
@@ -181,19 +198,20 @@ class BaseTirage(yaml.YAMLObject):
 
         return dices
 
-    async def make_poules(self):
+    async def make_poules(self, rnd):
+        """Put teams in poules for a given round (0 or 1)."""
+
         poules = {}
-        for rnd in (0, 1):
-            await self.start_make_poule(rnd)
+        await self.start_make_poule(rnd)
 
-            dices = await self.get_dices(self.teams)
-            sorted_teams = sorted(self.teams, key=lambda t: dices[t])
+        dices = await self.get_dices(self.teams)
+        sorted_teams = sorted(self.teams, key=lambda t: dices[t])
 
-            idx = 0
-            for i, qte in enumerate(self.format):
-                letter = chr(ord("A") + i)
-                poules[Poule(letter, rnd)] = sorted_teams[idx : idx + qte]
-                idx += qte
+        idx = 0
+        for i, qte in enumerate(self.format):
+            letter = chr(ord("A") + i)
+            poules[Poule(letter, rnd)] = sorted_teams[idx : idx + qte]
+            idx += qte
 
         await self.annonce_poules(poules)
         return poules

@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+import re
 import sys
 import traceback
 from collections import defaultdict, namedtuple
@@ -25,8 +26,11 @@ from src.errors import TfjmError, UnwantedCommand
 
 __all__ = ["TirageCog"]
 
-from src.utils import send_and_bin, french_join
+from src.utils import send_and_bin, french_join, pprint_send, confirm
 
+RE_DRAW_START = re.compile(
+    r"^((?P<fmt>\d(\+\d)*) )?(?P<teams>[A-Z]{3}(\s[A-Z]{3})+)((?P<finale>\s--finale)|(\s--continue[= ](?P<continue>\d+)))$"
+)
 
 Record = namedtuple("Record", ["name", "pb", "penalite"])
 
@@ -244,7 +248,9 @@ class DiscordTirage(BaseTirage):
 
     @safe
     async def start_select_pb(self, team):
-        await self.ctx.send(f"C'est au tour de {team.mention} de choisir un problème.")
+        await self.ctx.send(
+            f"C'est au tour de {team.mention} de choisir un problème (`!rp`)."
+        )
 
     @safe
     @send_all
@@ -255,12 +261,10 @@ class DiscordTirage(BaseTirage):
         second = "\n".join(
             f"{p}: {french_join(t)}" for p, t in poules.items() if p.rnd == 1
         )
-        yield (
-            f"Les poules sont donc, pour le premier tour :"
-            f"```{first}```\n"
-            f"Et pour le second tour :"
-            f"```{second}```"
-        )
+        if first:
+            yield (f"Les poules sont donc, pour le premier tour :" f"```{first}```\n")
+        if second:
+            yield (f"Pour le second tour les poules sont :" f"```{second}```")
 
     @safe
     @send_all
@@ -578,17 +582,20 @@ class TirageCog(Cog, name="Tirages"):
         await ctx.invoke(self.bot.get_command("help"), "draw")
 
     @draw_group.command(
-        name="start", usage="équipe1 équipe2 équipe3 (équipe4)",
+        name="start", usage="FMT TRI1 TRI2... [--finale] [--continue=ID]",
     )
     @commands.has_any_role(*Role.ORGAS)
-    async def start(self, ctx: Context, fmt, *teams: discord.Role):
+    async def start(self, ctx: Context, *args):
         """
         (orga) Commence un tirage avec 3 ou 4 équipes.
 
         Cette commande attend des trigrames d'équipes.
 
         Exemple:
-            `!draw start AAA BBB CCC`
+            `!draw start 5 AAA BBB CCC DDD EEE` - Tirage à une poule de 5 équipes
+            `!draw start 3+3 AAA BBB CCC DDD EEE FFF` - Deux poules de 3 équipes
+            `!draw start 3 AAA BBB CCC --finale` - Tirage seulement du premier tour
+            `!draw start AAA BBB CCC --continue=7` - Continue un tirage commencé avec `--finale`
         """
 
         channel: discord.TextChannel = ctx.channel
@@ -599,22 +606,70 @@ class TirageCog(Cog, name="Tirages"):
                 "il est possible d'en commencer un autre sur une autre channel."
             )
 
-        try:
-            fmt = list(map(int, fmt.split("+")))
-        except ValueError:
-            raise TfjmError(
-                "Le premier argument doit être le format du tournoi, "
-                "par exemple `3+3` pour deux poules à trois équipes"
+        query = " ".join(args)
+        match = re.match(RE_DRAW_START, query)
+
+        if match is None:
+            await ctx.send("La commande est mal formée.")
+            return await ctx.invoke(self.bot.get_command("help"), "draw start")
+
+        teams = match["teams"].split()
+        finale = bool(match["finale"])
+        continue_id = int(match["continue"]) if match["continue"] else None
+
+        if match["fmt"]:
+            fmt = list(map(int, match["fmt"].split()))
+        else:
+            l = len(teams)
+            if l <= 5:
+                fmt = [l]
+            else:
+                fmt = [3] * (l // 3 - 1) + [3 + l % 3]
+
+            yes = await confirm(
+                ctx,
+                self.bot,
+                f"Le format déterminé est {'+'.join(map(str, fmt))}, "
+                f"cela est-il correct ?",
             )
+            if not yes:
+                raise TfjmError(
+                    "Le tirage est annulé, vous pouvez le recommencer en précisant le format."
+                )
 
         if not set(fmt).issubset({3, 4, 5}):
             raise TfjmError("Seuls les poules à 3, 4 ou 5 équipes sont suportées.")
 
+        teams_roles = [get(ctx.guild.roles, name=tri) for tri in teams]
+        if not all(teams_roles):
+            raise TfjmError("Toutes les équipes ne sont pas sur le discord.")
+
         # Here all data should be valid
 
-        self.tirages[channel_id] = DiscordTirage(ctx, *teams, fmt=fmt)
+        if continue_id is None:
+            # New tirage
+            tirage = DiscordTirage(ctx, *teams_roles, fmt=fmt)
+            if finale:
+                rounds = (0,)
+            else:
+                rounds = 0, 1
+        else:
+            try:
+                tirage = self.get_tirages()[continue_id]
+            except KeyError:
+                raise TfjmError(
+                    f"Il n'y pas de tirage {continue_id}. ID possibles {french_join(self.get_tirages())}"
+                )
 
-        await self.tirages[channel_id].run()
+            rounds = (1,)
+
+            tirage.ctx = ctx
+            tirage.queue = asyncio.Queue()
+            for i, t in enumerate(teams_roles):
+                await tirage.event(Event(t.name, i + 1))
+
+        self.tirages[channel_id] = tirage
+        await self.tirages[channel_id].run(rounds)
 
         if self.tirages[channel_id]:
             # Check if aborted in an other way
@@ -622,9 +677,11 @@ class TirageCog(Cog, name="Tirages"):
 
     @draw_group.command(name="abort")
     @commands.has_any_role(*Role.ORGAS)
-    async def abort_draw_cmd(self, ctx):
+    async def abort_draw_cmd(self, ctx, force: bool = False):
         """
         (orga) Annule le tirage en cours.
+
+        Si oui est passé en paramettre, le tirage sera supprímé en même temps.
 
         Le tirage ne pourra pas être continué. Si besoin,
         n'hésitez pas à appeller un @dev : il peut réparer
@@ -633,9 +690,18 @@ class TirageCog(Cog, name="Tirages"):
         channel_id = ctx.channel.id
 
         if channel_id in self.tirages:
-            await ctx.send(f"Le tirage {self.tirages[channel_id].id} est annulé.")
+            id = self.tirages[channel_id].id
+            await ctx.send(f"Le tirage {id} est annulé.")
             self.tirages[channel_id].save()
             del self.tirages[channel_id]
+
+            if force:
+                tirages = self.get_tirages()
+                del tirages[id]
+
+                File.TIRAGES.touch()
+                with open(File.TIRAGES, "w") as f:
+                    yaml.dump(tirages, f)
         else:
             await ctx.send("Il n'y a pas de tirage en cours.")
 
@@ -738,6 +804,16 @@ class TirageCog(Cog, name="Tirages"):
                     await ctx.send(str(resp.status))
                     await ctx.send(str(resp.reason))
                     await ctx.send(await resp.content.read())
+
+    @draw_group.command(name="order")
+    @commands.has_role(Role.DEV)
+    async def set_order(self, ctx, *teams: discord.Role):
+        """(dev) L'ordre des équipes sera celui du message."""
+
+        channel = ctx.channel.id
+        if channel in self.tirages:
+            for i, t in enumerate(teams):
+                await self.tirages[channel].event(Event(t.name, i + 1))
 
 
 def setup(bot):
