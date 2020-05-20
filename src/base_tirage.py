@@ -13,6 +13,7 @@ import discord
 import yaml
 
 from src.constants import *
+from src.utils import pprint_send
 
 
 def skip_if(check, default=None):
@@ -280,7 +281,8 @@ class BaseTirage(yaml.YAMLObject):
                     i += 1
             # The conflicts
             order = doubles + order
-            self.poules[poule] = order
+
+            self.poules[poule] = [t.name for t in order]
 
         await self.annonce_poule(poule)
 

@@ -288,7 +288,7 @@ class DevCog(Cog, name="Dev tools"):
             pprint(resp, out)
 
             embed = discord.Embed(title="Result", color=discord.Colour.green())
-            embed.add_field(name="Query", value=f"```py\n{full_query}```", inline=False)
+            embed.add_field(name="Query", value=f"```py\n{query}```", inline=False)
 
             value = self.to_field_value(out)
             if resp is not None and value:
