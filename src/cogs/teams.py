@@ -114,13 +114,12 @@ class TeamsCog(Cog, name="Teams"):
         touriste_role = get(guild.roles, name=Role.TOURIST)
 
         if tournoi == "Finale":
-            # we don't give the "Finaliste" role to the tourists, it would give them rights.
-            # to simplify branching we assign twice "Touriste"
-            touriste_role = touriste_role
+            # we don't give the "Finaliste" role to the tourists, it would give them rights.1
+            roles = (touriste_role,)
+        else:
+            roles = touriste_role, tournoi_role
 
-        await ctx.author.add_roles(
-            touriste_role, tournoi_role, reason="Demande via le bot."
-        )
+        await ctx.author.add_roles(*roles, reason="Demande via le bot.")
 
         return f"{ctx.author.mention} à été ajouté comme spectateur pour {tournoi}."
 
