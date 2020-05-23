@@ -91,7 +91,7 @@ class TeamsCog(Cog, name="Teams"):
 
     @commands.command(name="tourist")
     @send_and_bin
-    async def touriste_cmd(self, ctx: Context, tournoi):
+    async def touriste_cmd(self, ctx: Context, tournoi="Finale"):
         """
         Permet de voir et ecouter dans les salons d'un certain tournoi.
 
@@ -99,9 +99,13 @@ class TeamsCog(Cog, name="Teams"):
             `!tourist Bordeaux-Nancy` - Donne les droits de spectateurs pour Bordeaux-Nancy
         """
 
-        if ctx.author.top_role != ctx.guild.default_role:
+        if ctx.author.top_role not in (
+            ctx.guild.default_role,
+            get(ctx.guild.roles, name=Role.TOURIST),
+        ):
             return f"{ctx.author.mention} tu as déjà un role, devenir spéctateur t'enlèverait des droits."
 
+        tournoi = tournoi.title()
         if tournoi not in TOURNOIS:
             return f"{tournoi} n'est pas un nom de tournoi. Possibilités: {french_join(TOURNOIS)}"
 
@@ -109,11 +113,16 @@ class TeamsCog(Cog, name="Teams"):
         tournoi_role = get(guild.roles, name=tournoi)
         touriste_role = get(guild.roles, name=Role.TOURIST)
 
+        if tournoi == "Finale":
+            # we don't give the "Finaliste" role to the tourists, it would give them rights.
+            # to simplify branching we assign twice "Touriste"
+            touriste_role = touriste_role
+
         await ctx.author.add_roles(
             touriste_role, tournoi_role, reason="Demande via le bot."
         )
 
-        return f"{ctx.author.mention} à été ajouté comme spectateur dans à {tournoi}."
+        return f"{ctx.author.mention} à été ajouté comme spectateur pour {tournoi}."
 
     @group(name="team", invoke_without_command=True, case_insensitive=True, hidden=True)
     async def team(self, ctx):

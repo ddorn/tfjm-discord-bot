@@ -280,7 +280,7 @@ class DiscordTirage(BaseTirage):
             table = """```
 ╔═════╦═════════╦═════════╦═════════╗
 ║ T F ║ Phase 1 ║ Phase 2 ║ Phase 3 ║
-║ J M ║   Pb {0.pb}  ║   Pb {1.pb}  ║   Pb {2.pb}  ║
+║ J M ║  Pb. {0.pb}  ║  Pb. {1.pb}  ║  Pb. {2.pb}  ║
 ╠═════╬═════════╬═════════╬═════════╣
 ║ {0.name} ║   Def   ║   Rap   ║   Opp   ║
 ╠═════╬═════════╬═════════╬═════════╣

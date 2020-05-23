@@ -34,7 +34,6 @@ from discord.ext.commands import (
 from discord.utils import get
 
 from src.constants import *
-from src.constants import Emoji
 from src.core import CustomBot
 from src.errors import TfjmError
 from src.utils import has_role, start_time, send_and_bin
