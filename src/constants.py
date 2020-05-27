@@ -91,6 +91,7 @@ class Emoji:
     CROSS = "❌"
     PLUS_1 = "👍"
     MINUS_1 = "👎"
+    RAINBOW_HEART = "<:rainbow_heart:714172834632564818>"
 
 
 class File:

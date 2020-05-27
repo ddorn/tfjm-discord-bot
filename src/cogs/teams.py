@@ -89,7 +89,7 @@ class TeamsCog(Cog, name="Teams"):
         # return str(channel.changed_roles)
         return "C'est fait !"
 
-    @commands.command(name="tourist")
+    @commands.command(name="tourist", aliases=["touriste"])
     @send_and_bin
     async def touriste_cmd(self, ctx: Context, tournoi="Finale"):
         """

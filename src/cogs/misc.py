@@ -192,7 +192,7 @@ class MiscCog(Cog, name="Divers"):
 
     # ----------------- Hugs ---------------- #
 
-    @command(aliases=["<3", "❤️", ":heart:"])
+    @command(aliases=["<3", "❤️", ":heart:", Emoji.RAINBOW_HEART])
     async def hug(self, ctx: Context, who="everyone"):
         """Fait un câlin à quelqu'un. :heart:"""
 
@@ -221,7 +221,7 @@ class MiscCog(Cog, name="Divers"):
             ":hugging:",
             ":smiling_face_with_3_hearts:",
             "Oh wiiii",
-            f"{'Je me sens' if bot_hug else 'Iel se sent'} désormais prêt à travailler à fond sur les solutions de AQT",
+            # f"{'Je me sens' if bot_hug else 'Iel se sent'} désormais prêt à travailler à fond sur les solutions de AQT",
             f"{who.mention} en redemande un !"
             if not bot_hug
             else "J'en veux un autre ! :heart_eyes:",
@@ -453,12 +453,15 @@ class MiscCog(Cog, name="Divers"):
             ":orange_heart:",
             ":heart:",
             ":sparkling_heart:",
+            Emoji.RAINBOW_HEART,
         ]
 
         if v <= 0:
             return hearts[0]
-        elif v >= 2000:
+        elif v >= 5000:
             return hearts[-1]
+        elif v >= 2000:
+            return hearts[-2]
         else:
             return hearts[len(str(v))]
 
