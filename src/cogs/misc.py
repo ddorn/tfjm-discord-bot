@@ -612,7 +612,8 @@ class MiscCog(Cog, name="Divers"):
 
             self.save_jokes(jokes)
 
-    @joke.command(name="top", hidden=True, enabled=False)
+    @joke.command(name="top", hidden=True)
+    @commands.has_any_role(*Role.ORGA)
     async def best_jokes(self, ctx: Context):
         """Affiche le palmares des blagues."""
 
