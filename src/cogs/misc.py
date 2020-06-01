@@ -628,8 +628,9 @@ class MiscCog(Cog, name="Divers"):
             if joke.file:
                 text += " - image non inclue - "
 
+            name = who.display_name if who else "Inconnu"
             embed.add_field(
-                name=f"{i} - {who.display_name} - {len(joke.likes)}", value=text
+                name=f"{i} - {name} - {len(joke.likes)}", value=text
             )
 
         await ctx.send(embed=embed)
