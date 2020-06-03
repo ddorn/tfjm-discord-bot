@@ -11,7 +11,7 @@ import urllib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import partial
-from math import *
+import math
 from operator import attrgetter, itemgetter
 from time import time
 from typing import List, Set, Union
@@ -35,11 +35,13 @@ OPS = {
     ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
     ast.FloorDiv: op.floordiv, ast.Mod: op.mod,
     ast.Div: op.truediv, ast.Pow: op.pow, ast.BitXor: op.xor,
-    ast.USub: op.neg, "sin": sin, "cos": cos, "pi": pi, "exp": exp,
-    "log": log, "abs": abs, "sqrt": sqrt, "tau": 2*pi, "π": pi, "τ": 2*pi,
-    "e": e, "i": 1j,
+    ast.USub: op.neg, "abs": abs, "π": math.pi, "τ": math.tau,
+    "i": 1j,
 }
 
+for name in dir(math):
+    if not name.startswith("_"):
+        OPS[name] = getattr(math, name)
 
 @dataclass
 class Joke(yaml.YAMLObject):
@@ -225,7 +227,7 @@ class MiscCog(Cog, name="Divers"):
         for prefix in ("! ", "!", "calc", "="):
             if query.startswith(prefix):
                 query = query[len(prefix):]
-        query = re.sub(r"(\d)i", r"\1*i", query)
+        query = re.sub(r"\b((\d)+(\.\d+)?)(?P<name>[a-zA-Z]+)\b", r"\1*\4", query)
 
         query = query.strip().strip("`")
 
