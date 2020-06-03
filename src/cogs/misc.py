@@ -1,15 +1,17 @@
+import ast
 import asyncio
 import datetime
 import io
 import itertools
+import operator as op
 import random
 import re
+import traceback
 import urllib
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import partial
-from itertools import groupby
-from math import log
+from math import *
 from operator import attrgetter, itemgetter
 from time import time
 from typing import List, Set, Union
@@ -19,24 +21,24 @@ import discord
 import yaml
 from discord import Guild, Member
 from discord.ext import commands
-from discord.ext.commands import (
-    Cog,
-    command,
-    Context,
-    Command,
-    CommandError,
-    Group,
-    group,
-    MemberConverter,
-    BadArgument,
-    RoleConverter,
-)
+from discord.ext.commands import (BadArgument, Cog, command, Command, CommandError, Context, Group, group, is_owner,
+                                  MemberConverter, RoleConverter)
 from discord.utils import get
 
 from src.constants import *
 from src.core import CustomBot
 from src.errors import TfjmError
-from src.utils import has_role, start_time, send_and_bin
+from src.utils import has_role, send_and_bin, start_time
+
+# supported operators
+OPS = {
+    ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
+    ast.FloorDiv: op.floordiv, ast.Mod: op.mod,
+    ast.Div: op.truediv, ast.Pow: op.pow, ast.BitXor: op.xor,
+    ast.USub: op.neg, "sin": sin, "cos": cos, "pi": pi, "exp": exp,
+    "log": log, "abs": abs, "sqrt": sqrt, "tau": 2*pi, "π": pi, "τ": 2*pi,
+    "e": e, "i": 1j,
+}
 
 
 @dataclass
@@ -189,6 +191,96 @@ class MiscCog(Cog, name="Divers"):
                 f"{who.mention} n'a pas encore de fan club. Peut-être qu'un jour "
                 f"iel sera un membre influent du CNO ?"
             )
+
+    @command(name="calc", aliases=["="])
+    async def calc_cmd(self, ctx, *args):
+        """Effectue un calcul simple"""
+        with_tb = has_role(ctx.author, Role.DEV)
+        embed = self._calc(ctx.message.content, with_tb)
+        resp = await ctx.send(embed=embed)
+
+        def check(before, after):
+            return after.id == ctx.message.id
+
+        while True:
+            try:
+                before, after = await self.bot.wait_for(
+                    "message_edit", check=check, timeout=600
+                )
+            except asyncio.TimeoutError:
+                break
+
+            embed = self._calc(after.content, with_tb)
+            await resp.edit(embed=embed)
+
+        # Remove the "You may edit your message"
+        embed.set_footer()
+        try:
+            await resp.edit(embed=embed)
+        except discord.NotFound:
+            pass
+
+    def _calc(self, query: str, with_tb=False):
+
+        for prefix in ("! ", "!", "calc", "="):
+            if query.startswith(prefix):
+                query = query[len(prefix):]
+        query = re.sub(r"(\d)i", r"\1*i", query)
+
+        query = query.strip().strip("`")
+
+        ex = None
+        result = 42
+        try:
+            result = self._eval(ast.parse(query, mode='eval').body)
+        except Exception as e:
+            ex = e
+
+        if isinstance(result, complex):
+            if abs(result.imag) < 1e-12:
+                result = result.real
+            else:
+                r, i = result.real, result.imag
+                r = r if abs(int(r) - r) > 1e-12 else int(r)
+                i = i if abs(int(i) - i) > 1e-12 else int(i)
+                if not r:
+                    result = f"{i if i != 1 else ''}i"
+                else:
+                    result = f"{r}{i if i != 1 else '':+}i"
+        if isinstance(result, float):
+            result = round(result, 12)
+
+        embed = discord.Embed(title=discord.utils.escape_markdown(query), color=EMBED_COLOR)
+        # embed.add_field(name="Entrée", value=f"`{query}`", inline=False)
+        embed.add_field(name="Valeur", value=f"`{result}`", inline=False)
+        if ex and with_tb:
+            embed.add_field(name="Erreur", value=f"{ex.__class__.__name__}: {ex}", inline=False)
+            trace = io.StringIO()
+            traceback.print_exception(type(ex), ex, ex.__traceback__, file=trace)
+            trace.seek(0)
+            embed.add_field(name="Traceback", value=f"```\n{trace.read()}```")
+        embed.set_footer(text="You may edit your message")
+
+        return embed
+
+    def _eval(self, node):
+        if isinstance(node, ast.Num):  # <number>
+            return node.n
+        elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
+            return OPS[type(node.op)](self._eval(node.left), self._eval(node.right))
+        elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
+            return OPS[type(node.op)](self._eval(node.operand))
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                return OPS[node.func.id](*(self._eval(n) for n in node.args), **{k.arg: self._eval(k.value) for k in node.keywords})
+        elif isinstance(node, ast.Name):
+            return OPS[node.id]
+
+        fields = ", ".join(
+            f"{k}={getattr(node, k).__class__.__name__}" for k in node._fields
+        )
+        raise TypeError(f"Type de noeud non supporté: {node.__class__.__name__}({fields})")
+
 
     # ----------------- Hugs ---------------- #
 
@@ -524,14 +616,15 @@ class MiscCog(Cog, name="Divers"):
             yaml.safe_dump_all(jokes, f)
 
     @group(name="joke", invoke_without_command=True, case_insensitive=True)
-    async def joke(self, ctx: Context):
+    async def joke(self, ctx: Context, id=None):
         """Fait discretement une blague aléatoire."""
 
         m: discord.Message = ctx.message
         await m.delete()
 
         jokes = self.load_jokes()
-        if False:
+        if id is not None:
+            id = int(id)
             joke_id = id
             jokes = sorted(
                 jokes, key=lambda j: len(j.likes) - len(j.dislikes), reverse=True
@@ -613,7 +706,7 @@ class MiscCog(Cog, name="Divers"):
             self.save_jokes(jokes)
 
     @joke.command(name="top", hidden=True)
-    @commands.has_any_role(*Role.ORGA)
+    @commands.has_any_role(*Role.ORGAS)
     async def best_jokes(self, ctx: Context):
         """Affiche le palmares des blagues."""
 
@@ -631,7 +724,7 @@ class MiscCog(Cog, name="Divers"):
 
             name = who.display_name if who else "Inconnu"
             embed.add_field(
-                name=f"{i} - {name} - {len(joke.likes)}", value=text
+                name=f"{i} - {name} - {len(joke.likes)} :heart: {len(joke.dislikes)} :broken_heart:", value=text, inline=False
             )
 
         await ctx.send(embed=embed)
