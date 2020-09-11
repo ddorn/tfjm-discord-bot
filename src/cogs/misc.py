@@ -754,7 +754,8 @@ class MiscCog(Cog, name="Divers"):
             color=0xFFA500,
         )
 
-        commands = itertools.groupby(self.bot.walk_commands(), attrgetter("cog_name"))
+        cog_getter = attrgetter("cog_name")
+        commands = itertools.groupby(sorted(self.bot.walk_commands(), key=cog_getter), cog_getter)
 
         for cat_name, cat in commands:
             cat = {c.qualified_name: c for c in cat}
