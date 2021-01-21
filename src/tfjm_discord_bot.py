@@ -1,12 +1,13 @@
 #!/bin/python
 
+from discord import Intents
+
 from src.constants import *
 from src.core import CustomBot
 
 # We allow "! " to catch people that put a space in their commands.
 # It must be in first otherwise "!" always match first and the space is not recognised
 from src.utils import fg
-
 
 # Global variable to hold the tirages.
 # We *want* it to be global so we can reload the tirages cog without
